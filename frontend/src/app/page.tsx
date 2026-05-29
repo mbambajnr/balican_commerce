@@ -1,0 +1,300 @@
+import Link from "next/link";
+import { ArrowRight, Wrench, ClipboardText, HardHat, Truck, ShieldCheck, Gear, Users, ShoppingBag } from "@phosphor-icons/react/dist/ssr";
+import { Reveal, Counter } from "@/lib/reveal";
+import HeroCarousel from "@/components/hero-carousel";
+import FeaturedProductCarousel from "@/components/featured-products";
+import TestimonialCarousel from "@/components/testimonial-carousel";
+import type { Metadata } from "next";
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://balican.com";
+
+export const metadata: Metadata = {
+  title: "Bali-Can Limited — Industrial Solutions",
+  description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, installation, maintenance, and B2B procurement.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Bali-Can Limited — Industrial Solutions",
+    description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, installation, maintenance, and B2B procurement.",
+    type: "website",
+    images: [{ url: "/og-default.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Bali-Can Limited — Industrial Solutions",
+    description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}#organization`,
+      name: "Bali-Can Limited",
+      url: siteUrl,
+      logo: `${siteUrl}/logo.png`,
+      description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Accra",
+        addressRegion: "Greater Accra",
+        addressCountry: "GH",
+      },
+      contactPoint: [
+        {
+          "@type": "ContactPoint",
+          telephone: "+233-XXX-XXX-XXXX",
+          contactType: "sales",
+          availableLanguage: ["English"],
+        },
+        {
+          "@type": "ContactPoint",
+          telephone: "+233-XXX-XXX-XXXX",
+          contactType: "customer service",
+          availableLanguage: ["English"],
+        },
+      ],
+      sameAs: [],
+    },
+    {
+      "@type": "LocalBusiness",
+      "@id": `${siteUrl}#localbusiness`,
+      name: "Bali-Can Limited",
+      url: siteUrl,
+      logo: `${siteUrl}/logo.png`,
+      description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, and B2B procurement.",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Accra",
+        addressRegion: "Greater Accra",
+        addressCountry: "GH",
+      },
+      telephone: "+233-XXX-XXX-XXXX",
+      email: "info@balican.com",
+      openingHoursSpecification: [
+        { "@type": "OpeningHoursSpecification", dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], opens: "08:00", closes: "17:00" },
+        { "@type": "OpeningHoursSpecification", dayOfWeek: "Saturday", opens: "09:00", closes: "13:00" },
+      ],
+      sameAs: [],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}#website`,
+      url: siteUrl,
+      name: "Bali-Can Limited",
+      description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${siteUrl}/products?search={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      },
+    },
+  ],
+};
+
+async function getProducts() {
+  try {
+    const res = await fetch(`${API}/products?limit=10`, { next: { revalidate: 60 } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.products || [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const products = await getProducts();
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <div>
+        <HeroCarousel />
+
+        <section className="noise-overlay border-b border-white/10 bg-navy">
+          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+              {[
+                { end: 2500, label: "Products", icon: ShoppingBag },
+                { end: 50, label: "Categories", icon: Gear },
+                { end: 500, label: "Clients Served", icon: Users },
+                { end: 12, label: "Years in Operation", icon: Truck },
+              ].map((stat, i) => (
+                <Reveal key={stat.label} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
+                  <div className="text-center">
+                    <stat.icon size={24} className="mx-auto text-accent" weight="duotone" />
+                    <p className="mt-3 font-display text-4xl font-semibold tracking-tight text-white">
+                      <Counter end={stat.end} suffix="+" duration={2500} />
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">{stat.label}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="mb-14 flex items-end justify-between">
+              <div>
+                <span className="section-label text-accent">
+                  <span className="accent-diamond" />
+                  Marketplace
+                </span>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Featured Products</h2>
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-soft">
+                  Browse our catalog of industrial products. Search, filter, and find exactly what you need.
+                </p>
+              </div>
+              <Link href="/products" className="hidden items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-bold transition-colors sm:flex">
+                View All <ArrowRight size={14} weight="bold" />
+              </Link>
+            </div>
+          </Reveal>
+
+          <Reveal animation="animate-fade-up">
+            <FeaturedProductCarousel products={products} />
+            <div className="mt-8 text-center sm:hidden">
+              <Link href="/products" className="btn btn-ghost gap-2">
+                View All Products <ArrowRight size={14} weight="bold" />
+              </Link>
+            </div>
+          </Reveal>
+        </section>
+
+        <section className="border-t border-border bg-surface">
+          <div className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
+            <Reveal>
+              <div className="mb-14 max-w-2xl">
+                <span className="section-label text-accent">
+                  <span className="accent-diamond" />
+                  Services
+                </span>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">How we support your operations</h2>
+                <p className="mt-2 text-sm leading-relaxed text-soft">From installation to maintenance — we handle the full lifecycle so your operations stay running.</p>
+              </div>
+            </Reveal>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {[
+                {
+                  icon: Wrench, title: "Installation", desc: "Professional on-site installation. We handle delivery, setup, testing, and commissioning.",
+                  color: "bg-accent-soft text-accent-bold", href: "/booking", label: "Book Installation",
+                },
+                {
+                  icon: ClipboardText, title: "Request a Quote", desc: "Need custom pricing for bulk or specialized products? Submit an RFQ and we will respond within hours.",
+                  color: "bg-accent-soft text-accent-bold", href: "/rfq/new", label: "Submit RFQ",
+                },
+                {
+                  icon: HardHat, title: "Service Contracts", desc: "Annual and quarterly maintenance contracts with automated renewals, priority dispatch, and dedicated support.",
+                  color: "bg-accent-soft text-accent-bold", href: "/auth/register", label: "Get Started",
+                },
+              ].map((svc, i) => (
+                <Reveal key={svc.title} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
+                  <Link href={svc.href} className="group card block p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                    <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${svc.color} transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg`}>
+                      <svc.icon size={30} weight="duotone" />
+                    </div>
+                    <h3 className="mt-5 font-display text-lg font-semibold text-ink">{svc.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-soft">{svc.desc}</p>
+                    <div className="mt-6 flex items-center justify-center gap-1.5 text-sm font-medium text-accent">
+                      {svc.label} <ArrowRight size={14} weight="bold" className="transition-transform duration-300 group-hover:translate-x-1" />
+                    </div>
+                  </Link>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="mb-14 text-center">
+              <span className="section-label justify-center text-accent mb-4">
+                <span className="accent-diamond" />
+                <span className="mx-2">Trusted by Industry</span>
+                <span className="accent-diamond" />
+              </span>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">What our clients say</h2>
+            </div>
+          </Reveal>
+
+          <Reveal animation="animate-fade-up">
+            <TestimonialCarousel />
+          </Reveal>
+        </section>
+
+        <section className="noise-overlay border-t border-white/10 bg-navy">
+          <div className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
+            <Reveal>
+              <div className="mb-14 text-center">
+                <span className="section-label justify-center text-accent mb-4">
+                  <span className="accent-diamond" />
+                  Why Bali-Can
+                </span>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Built for industry</h2>
+              </div>
+            </Reveal>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { icon: Truck, title: "Nationwide Delivery", desc: "We deliver to all 16 regions across Ghana, including remote industrial zones." },
+                { icon: ShieldCheck, title: "Quality Guaranteed", desc: "All products sourced from certified manufacturers with full traceability." },
+                { icon: Gear, title: "End-to-End Service", desc: "From procurement to installation and ongoing maintenance — one partner." },
+                { icon: Users, title: "Dedicated Support", desc: "Account managers assigned to every B2B client for personalized service." },
+              ].map((item, i) => (
+                <Reveal key={item.title} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center transition-all duration-300 hover:border-accent/30 hover:bg-white/[0.06] hover:shadow-lg hover:-translate-y-0.5">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                      <item.icon size={22} weight="duotone" />
+                    </div>
+                    <h3 className="mt-4 font-display text-base font-semibold text-white">{item.title}</h3>
+                    <p className="mt-2 text-sm text-zinc-400">{item.desc}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="noise-overlay relative overflow-hidden bg-navy-dark">
+          <div className="absolute inset-0 opacity-[0.02]" style={{
+            backgroundImage: `
+              linear-gradient(rgba(24,72,204,1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(24,72,204,1) 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+          }} />
+           <div className="pointer-events-none absolute -left-40 -bottom-40 text-[25rem] font-display font-bold leading-none text-white/[0.008] select-none">BC</div>
+           <div className="pointer-events-none absolute -right-20 top-1/2 text-[12rem] font-display font-bold leading-none text-white/[0.006] select-none -rotate-12">BC</div>
+          <div className="relative mx-auto max-w-7xl px-4 py-28 text-center sm:px-6 lg:px-8">
+            <Reveal animation="animate-scale-in">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10">
+                <ShieldCheck size={32} className="text-accent" weight="duotone" />
+              </div>
+              <h2 className="mt-6 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Ready to get started?</h2>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-zinc-400">
+                Register your company to browse products, request quotes, negotiate pricing, book installations, and manage your orders.
+              </p>
+              <div className="mt-10 flex flex-wrap justify-center gap-4">
+                <Link href="/auth/register" className="btn-shine btn-primary btn-lg">
+                  Register Your Company <ArrowRight size={16} weight="bold" />
+                </Link>
+                <Link href="/products" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-white/40 hover:bg-white/10 active:scale-[0.97]">
+                  Browse Catalog
+                </Link>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}

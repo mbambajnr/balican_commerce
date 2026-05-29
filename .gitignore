@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+.next/
+dist/
+.turbo/
+backups/
+uploads/
+*.tsbuildinfo
+.agents/
+skills-lock.json
+Openssl/

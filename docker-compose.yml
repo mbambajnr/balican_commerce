@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: sslplan
+      POSTGRES_USER: sslplan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sslplan_prod}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sslplan -d sslplan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sslplan
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://sslplan:${POSTGRES_PASSWORD:-sslplan_prod}@postgres:5432/sslplan
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:-https://sslplan.com}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY:-}
+      PAYSTACK_WEBHOOK_SECRET: ${PAYSTACK_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:-}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-}
+      UPLOAD_STORAGE_DRIVER: local
+      UPLOAD_DIR: /app/uploads
+      PUBLIC_UPLOAD_BASE_URL: ${PUBLIC_UPLOAD_BASE_URL:-https://sslplan.com/uploads}
+      UPLOAD_MAX_IMAGE_SIZE: ${UPLOAD_MAX_IMAGE_SIZE:-5242880}
+    networks:
+      - sslplan
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://sslplan.com/api}
+        AUTH_URL: ${AUTH_URL:-https://sslplan.com}
+        AUTH_SECRET: ${AUTH_SECRET}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL:-https://sslplan.com}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://sslplan.com/api}
+    networks:
+      - sslplan
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - sslplan
+
+networks:
+  sslplan:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:
