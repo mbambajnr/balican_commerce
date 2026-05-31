@@ -91,17 +91,43 @@ export default function OrderConfirmPage() {
         </div>
 
         <div className="mt-8 divide-y divide-border">
-          {order.items.map((item: any, i: number) => (
+          {(order.items || []).map((item: any, i: number) => {
+            const unitPrice = item.price ?? item.unitPrice ?? 0;
+            const lineTotal = unitPrice * item.quantity;
+            return (
             <div key={i} className="flex justify-between py-3 text-sm">
-              <span className="text-soft">{item.name} <span className="text-muted">x{item.quantity}</span></span>
-              <span className="font-medium text-ink">GH₵{(item.price * item.quantity).toLocaleString()}</span>
+              <span className="text-soft">
+                {item.name}
+                {item.sku ? <span className="text-muted ml-1">({item.sku})</span> : null}
+                <span className="text-muted"> x{item.quantity}</span>
+              </span>
+              <span className="font-medium text-ink">GH₵{lineTotal.toLocaleString()}</span>
             </div>
-          ))}
+          );})}
           <div className="flex justify-between py-4 text-base font-semibold">
             <span>Total</span>
             <span className="text-accent">GH₵{Number(order.total).toLocaleString()}</span>
           </div>
         </div>
+
+        {order.procurement_request_id && (
+          <div className="mt-6 border-t border-border pt-6">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-center">
+              <p className="text-xs text-blue-600 font-medium">Procurement Order</p>
+              <p className="mt-0.5 text-xs text-blue-500">
+                Created from procurement request
+              </p>
+            </div>
+          </div>
+        )}
+
+        {order.order_type === "service" && !order.procurement_request_id && (
+          <div className="mt-6 border-t border-border pt-6">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-center">
+              <p className="text-xs text-blue-600 font-medium">Service Order</p>
+            </div>
+          </div>
+        )}
 
         {order.payment_method === "credit" && (
           <div className="mt-6 space-y-3 border-t border-border pt-6">

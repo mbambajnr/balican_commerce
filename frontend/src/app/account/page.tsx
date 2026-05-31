@@ -226,6 +226,15 @@ export default function CompanyDashboard() {
             View all <ArrowRight size={14} />
           </p>
         </Link>
+        <Link href="/account/procurement/activity" className="card p-6 transition-all hover:shadow-md group">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+            <ClipboardText size={20} weight="duotone" />
+          </div>
+          <p className="mt-4 font-display text-base font-semibold text-ink">Procurement Activity</p>
+          <p className="mt-1 flex items-center gap-1 text-sm text-soft transition-colors group-hover:text-accent">
+            View all <ArrowRight size={14} />
+          </p>
+        </Link>
       </div>
 
       {/* Company Profile Card */}

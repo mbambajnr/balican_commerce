@@ -252,9 +252,11 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:slug", async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT p.*, c.name as category_name, c.slug as category_slug, c.seo_title as category_seo_title, c.seo_description as category_seo_description, c.intro_text as category_intro_text
+      `SELECT p.*, cat.name as category_name, cat.slug as category_slug, cat.seo_title as category_seo_title, cat.seo_description as category_seo_description, cat.intro_text as category_intro_text,
+              comp.name as provider_name, comp.logo_url as provider_logo, comp.id as provider_company_id
        FROM products p
-       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN categories cat ON p.category_id = cat.id
+       LEFT JOIN companies comp ON p.provider_company_id = comp.id
        WHERE p.slug = $1 AND p.is_active = true`,
       [req.params.slug]
     );

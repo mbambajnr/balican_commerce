@@ -19,6 +19,7 @@ declare module "next-auth" {
       account_status: string | null;
       company_name: string | null;
       company_status: string | null;
+      is_provider: boolean;
     };
     token: string;
   }
@@ -36,6 +37,7 @@ declare module "next-auth" {
     account_status: string | null;
     company_name: string | null;
     company_status: string | null;
+    is_provider: boolean;
     token: string;
   }
 }
@@ -55,6 +57,7 @@ declare module "next-auth/jwt" {
     account_status: string | null;
     company_name: string | null;
     company_status: string | null;
+    is_provider: boolean;
     token: string;
   }
 }

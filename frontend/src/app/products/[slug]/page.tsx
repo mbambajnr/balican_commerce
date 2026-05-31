@@ -18,6 +18,17 @@ async function getProduct(slug: string) {
   }
 }
 
+async function getSuppliers(productId: string) {
+  try {
+    const res = await fetch(`${API}/marketplace/products/${productId}/suppliers`, { next: { revalidate: 60 } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.suppliers || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProduct(slug);
@@ -48,6 +59,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const product = await getProduct(slug);
   if (!product) notFound();
+  const suppliers = product.id ? await getSuppliers(product.id) : [];
 
   const imageUrl = product.primary_image?.url || product.images?.[0]?.url || product.images_list?.[0]?.url || undefined;
 
@@ -176,7 +188,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </div>
             )}
 
-            <ProductClient product={product} />
+            <ProductClient product={product} suppliers={suppliers} />
 
             {/* Resources — internal linking */}
             <div className="mt-8 rounded-xl border border-border bg-surface/50 p-5">
@@ -193,6 +205,130 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </div>
           </div>
         </div>
+
+        {/* Supplier Cards Section */}
+        {suppliers.length > 0 && (
+          <div className="mt-12">
+            <div className="mx-auto max-w-3xl">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-ink">Suppliers selling this product</h2>
+                  <p className="mt-1 text-sm text-muted">
+                    {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""} available · sorted by Trust Score
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {suppliers.map((s: any) => {
+                  const bd = s.scoreBreakdown;
+                  const ts = s.trustSignals;
+                  const creditColor =
+                    ts?.creditTier === "premium" ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : ts?.creditTier === "standard" ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-gray-100 text-gray-600 border-gray-200";
+                  const creditStatusOk = ts?.creditStatus === "approved";
+                  return (
+                    <div key={s.id} className="rounded-xl border border-border bg-white p-4 transition-shadow hover:shadow-md">
+                      {/* Header row */}
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-sm font-bold text-ink">
+                          {s.logo_url ? (
+                            <img src={s.logo_url} alt={s.name} className="h-10 w-10 rounded-lg object-cover" />
+                          ) : (
+                            s.name?.charAt(0) || "S"
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-sm font-semibold text-ink truncate">{s.name}</p>
+                            {s.verification_badge && (
+                              <span className="shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">Verified</span>
+                            )}
+                            {creditStatusOk && (
+                              <span className={`shrink-0 border text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${creditColor}`}>
+                                {ts.creditTier}
+                              </span>
+                            )}
+                          </div>
+                          {s.price !== null ? (
+                            <p className="mt-0.5 text-sm font-semibold text-accent">GH₵{Number(s.price).toLocaleString()}</p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-muted">Contact for price</p>
+                          )}
+                        </div>
+                        {/* Trust Score pill */}
+                        {s.supplierScore != null && (
+                          <div className="shrink-0 text-right">
+                            <div className={`text-lg font-bold leading-none ${
+                              s.supplierScore >= 70 ? "text-emerald-600"
+                              : s.supplierScore >= 40 ? "text-amber-600"
+                              : "text-gray-400"
+                            }`}>
+                              {s.supplierScore}
+                            </div>
+                            <div className="text-[10px] text-muted">/ 100</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Trust signals row */}
+                      {ts && (
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3">
+                          {ts.quoteResponseRate !== null && (
+                            <span className="text-xs text-muted">
+                              <span className="font-medium text-ink">{Math.round(ts.quoteResponseRate * 100)}%</span> response rate
+                            </span>
+                          )}
+                          {ts.averageResponseHours !== null && (
+                            <span className="text-xs text-muted">
+                              responds in <span className="font-medium text-ink">
+                                {ts.averageResponseHours < 24
+                                  ? `${Math.round(ts.averageResponseHours)}h`
+                                  : `${Math.round(ts.averageResponseHours / 24)}d`}
+                              </span>
+                            </span>
+                          )}
+                          {ts.completedProcurementOrders > 0 && (
+                            <span className="text-xs text-muted">
+                              <span className="font-medium text-ink">{ts.completedProcurementOrders}</span> orders fulfilled
+                            </span>
+                          )}
+                          {bd && (
+                            <span className="text-xs text-muted">
+                              profile <span className="font-medium text-ink">{Math.round(ts.profileCompleteness * 100)}%</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Score bar */}
+                      {s.supplierScore != null && (
+                        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              s.supplierScore >= 70 ? "bg-emerald-400"
+                              : s.supplierScore >= 40 ? "bg-amber-400"
+                              : "bg-gray-300"
+                            }`}
+                            style={{ width: `${s.supplierScore}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-6">
+                <Link
+                  href={`/procurement/requests/new?productId=${product.id}&providerIds=${suppliers.map((s: any) => s.id).join(",")}`}
+                  className="btn btn-primary gap-2"
+                >
+                  Request Quote from {suppliers.length} Supplier{suppliers.length !== 1 ? "s" : ""}
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import {
-  ArrowLeft, PaperPlaneRight, X, Plus, FloppyDisk,
+  ArrowLeft, PaperPlaneRight, X, Plus, FloppyDisk, FileText,
 } from "@phosphor-icons/react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import EmptyState from "@/components/admin/EmptyState";
@@ -463,6 +463,7 @@ export default function AdminRfqDetailPage() {
                   {q.status === "draft" && (
                     <>
                       <button onClick={() => startEditDraft(q)} className="btn btn-sm gap-1"><FloppyDisk size={14} /> Edit</button>
+                      <a href={`/api/admin/quotations/${q.id}/preview`} target="_blank" className="btn btn-sm gap-1"><FileText size={14} /> Preview</a>
                       <button onClick={() => handleSend(q.id)} className="btn btn-sm btn-primary gap-1"><PaperPlaneRight size={14} /> Send</button>
                       <button onClick={() => handleCancel(q.id)} className="btn btn-sm gap-1"><X size={14} /> Cancel Draft</button>
                     </>

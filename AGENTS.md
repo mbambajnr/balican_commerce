@@ -630,3 +630,251 @@ Position Bali-Can for search engines and AI assistants (ChatGPT, Gemini, Perplex
 - `frontend/src/app/booking/booking-page-client.tsx` — Booking client component
 - `backend/src/config/migrate-category-seo.ts` — Category SEO migration
 - `backend/src/__tests__/b2b-seo.test.ts` — SEO/AI discoverability tests
+
+---
+
+## Session 10: Phase 2 — Provider Dashboard (CRUD Core)
+
+### Goal
+Build the practical core of the provider dashboard: dashboard shell, profile edit, product/service CRUD scoped to provider company, inventory/availability management, and tests for provider ownership and role permissions.
+
+### Done
+1. **Backend Routes** (`backend/src/routes/provider-dashboard.ts`):
+   - `GET /api/provider/dashboard` — Stats overview (product count, service count, recent products/services)
+   - `GET /api/provider/products` — Paginated list of own products (searchable, filterable by status)
+   - `POST /api/provider/products` — Create product under provider company
+   - `PUT /api/provider/products/:id` — Update own product (scoped by `provider_company_id`)
+   - `PATCH /api/provider/products/:id/toggle` — Toggle active/inactive
+   - `PATCH /api/provider/products/:id/inventory` — Update stock status and minimum order quantity
+   - `GET /api/provider/services` — Paginated list of own services
+   - `POST /api/provider/services` — Create service under provider company
+   - `PUT /api/provider/services/:id` — Update own service
+   - `PATCH /api/provider/services/:id/toggle` — Toggle active/inactive
+   - `PATCH /api/provider/services/:id/availability` — Update availability status and minimum job value
+   - **Security**: All routes check `is_provider` on the company; all mutations verify ownership of the resource via `provider_company_id`
+
+2. **Frontend Pages** (6 routes under `/provider`):
+   - `/provider` — Dashboard overview with stats cards + recent products/services widgets
+   - `/provider/profile` — Edit profile details (description, logo, service areas, regions, website, phone, business hours)
+   - `/provider/products` — Product listing table with search/filter/pagination, activate/deactivate toggle
+   - `/provider/products/new` — Create product form (name, SKU, category, price, stock, visibility, min qty, credit eligibility)
+   - `/provider/products/[id]/edit` — Edit product form (same fields + active toggle)
+   - `/provider/services` — Service listing table with search/filter/pagination, activate/deactivate toggle
+   - `/provider/services/new` — Create service form (name, category, type, pricing model, starting price, visibility, response time, min job value, service areas, credit eligibility)
+   - `/provider/services/[id]/edit` — Edit service form
+   - `/provider/inventory` — Bulk stock status + min order quantity management per product row (inline editing with save per row)
+
+3. **Layout & Navigation**
+   - `layout.tsx` — Provider dashboard shell with collapsible sidebar (Dashboard, Products, Services, Inventory, Profile, Sign Out)
+   - `navbar.tsx` — Added "Provider Dashboard" link (desktop + mobile) visible to all authenticated users
+
+4. **API Client Extensions** (`frontend/src/lib/api.ts`):
+   - `getProviderDashboard()`, `getProviderProducts()`, `createProviderProduct()`, `updateProviderProduct()`, `toggleProviderProduct()`, `updateProviderProductInventory()`
+   - `getProviderServices()`, `createProviderService()`, `updateProviderService()`, `toggleProviderService()`, `updateProviderServiceAvailability()`
+
+5. **API Registration**: Routes registered in `app.ts` at `/api`
+
+6. **Tests** (`backend/src/__tests__/provider-dashboard.test.ts`, 28 tests):
+   - Dashboard returns stats for providers, rejects non-providers and unauthenticated
+   - Products: create, list, update, toggle, reject cross-provider update, reject non-provider create, reject unauthenticated
+   - Services: create, list, update, reject cross-provider update, toggle, reject non-provider create
+   - Inventory/availability: update stock status, update min qty, reject cross-provider, update service availability, update min job value, reject cross-provider availability
+   - Isolation: provider A cannot see/edit/toggle provider B's products/services
+   - Error handling: 400 on missing name, missing price; 401/403 on auth/role
+
+### Files Created/Modified
+- `backend/src/routes/provider-dashboard.ts` — All provider CRUD routes (NEW)
+- `backend/src/app.ts` — Registered provider routes (MODIFIED)
+- `frontend/src/lib/api.ts` — Provider dashboard API methods (MODIFIED)
+- `frontend/src/app/navbar.tsx` — Provider Dashboard link (MODIFIED)
+- `frontend/src/app/provider/layout.tsx` — Dashboard shell sidebar (NEW)
+- `frontend/src/app/provider/page.tsx` — Dashboard overview (NEW)
+- `frontend/src/app/provider/profile/page.tsx` — Profile edit (NEW)
+- `frontend/src/app/provider/products/page.tsx` — Product list (NEW)
+- `frontend/src/app/provider/products/new/page.tsx` — Create product (NEW)
+- `frontend/src/app/provider/products/[id]/edit/page.tsx` — Edit product (NEW)
+- `frontend/src/app/provider/services/page.tsx` — Service list (NEW)
+- `frontend/src/app/provider/services/new/page.tsx` — Create service (NEW)
+- `frontend/src/app/provider/services/[id]/edit/page.tsx` — Edit service (NEW)
+- `frontend/src/app/provider/inventory/page.tsx` — Inventory management (NEW)
+- `backend/src/__tests__/provider-dashboard.test.ts` — 28 tests (NEW)
+
+### Test Results
+- **28/28 provider-dashboard tests passing**
+- Backend TypeScript: clean
+- Frontend TypeScript: clean
+
+### Key Decisions
+- Products/services scoped entirely by `provider_company_id` on the DB row — no way for provider A to read/write provider B's resources
+- `resolveProviderCompany()` helper checks `is_provider` on the company table, memoized per request via `SELECT`
+- Toggle pattern uses `NOT is_active` SQL for atomic flip
+- Inventory page uses inline row-level editing (save per row, not bulk) to avoid accidental batch mutations
+- Service edit loads data from marketplace API (`/marketplace/services/:id`) which already exists
+- Provider link visible to ALL authenticated users in navbar (not just providers) — users who don't have a provider company will get a 403, which is clean enough for now
+- Frontend pages follow same patterns as `/admin` (DataTable/Pagination, TanStack-like patterns)
+
+### Critical Context
+- `company_type` enum values: `buyer`, `supplier`, `service_provider`, `both_supplier_and_service_provider`, `platform_admin`
+- Provider companies use `is_provider = true` + `company_type = 'supplier'` or `'service_provider'`
+- All provider routes run through `authenticate` middleware (JWT required)
+- `generateToken()` from helpers creates a valid JWT for tests
+- The `services` table has `availability_status` and `minimum_job_value` fields for availability management
+- The `products` table has `stock_status`, `minimum_order_quantity`, `price_visibility`, `credit_eligible`, `provider_company_id`
+
+---
+
+## Session 11: Phase 4 — Supplier Credit Vetting
+
+### Goal
+Build a heuristic credit assessment system for suppliers/providers, enabling admin to evaluate, approve, or reject supplier credit with tiered risk levels (premium/standard/basic), and expose credit tier in marketplace and procurement provider listings.
+
+### Done
+
+1. **Migration** (`backend/src/config/migrate-supplier-credit.ts`):
+   - Created `supplier_credit_profiles` table (company_id PK, vetting_status ENUM, credit_tier ENUM, credit_limit, review_notes, rejection_reason, reviewed_by, reviewed_at, next_review_at, metadata JSONB)
+   - `credit_tier` ENUM: `unrated`, `basic`, `standard`, `premium`
+   - `vetting_status` ENUM: `pending`, `approved`, `rejected`
+   - Proper FK to companies, indexed
+
+2. **Heuristic Vetting Service** (`backend/src/services/supplier-credit-vetting.ts`):
+   - `assessSupplierCreditVetting(companyId)` — analyzes 4 weighted dimensions:
+     - **Order History** (35%): total orders, completed orders (using `completed`/`paid` statuses)
+     - **Product/Service Catalog** (30%): active products count, credit-eligible products count, services count
+     - **Engagement Level** (20%): procurement quotes submitted, has active products, has profile completeness
+     - **Profile Completeness** (15%): description, website, business categories, logo, service areas, years experience, certifications
+   - Weighted total → tier: ≥75 premium, 50-74 standard, 25-49 basic, <25 unrated
+   - Suggested credit limit: `baseLimit * tierMultiplier` (50000 * 3 for premium, * 2 for standard, * 1 for basic)
+   - Warnings: no orders, no products, no services, incomplete profile, no certifications
+   - Fixed DB enum compatibility (`completed`/`paid` instead of invalid `delivered`/`shipped`)
+
+3. **Admin Endpoints** (`backend/src/routes/admin.ts`):
+   - `GET /api/admin/providers/:id/credit-vetting` — Run heuristic assessment (read-only, returns vetting + current profile)
+   - `POST /api/admin/providers/:id/credit-vetting/approve` — Approve with creditTier, creditLimit, reviewNotes, nextReviewAt. Client-validation restricts tier to `premium`/`standard`/`basic`. Upserts profile (ON CONFLICT DO UPDATE).
+   - `POST /api/admin/providers/:id/credit-vetting/reject` — Reject with rejectionReason, reviewNotes. Resets tier to `basic`, limit to 0.
+   - All endpoints use `AuthRequest` type for `req.userId!` access
+
+4. **Marketplace Integration** (`backend/src/routes/marketplace.ts`):
+   - Provider detail endpoint now queries `supplier_credit_profiles` and returns `credit_tier` and `supplier_credit_status` fields
+
+5. **Procurement Integration** (`backend/src/routes/procurement.ts`):
+   - Provider list endpoint accepts `?creditTier=premium|standard|basic` query parameter
+   - Filters by LEFT JOIN on `supplier_credit_profiles` where `credit_tier = $1`
+   - Provider list returns `credit_tier` field for all providers
+
+6. **Frontend — Tier Badge** (`frontend/src/app/marketplace/providers/[id]/page.tsx`):
+   - Premium tier: amber badge, Standard: green badge, Basic/None: no badge
+   - Label "Premium Supplier", "Standard Supplier"
+
+7. **Frontend — Procurement Filter Dropdown** (`frontend/src/app/procurement/requests/new/page.tsx`):
+   - Added `creditTier` state and `<select>` dropdown (All Tiers, Premium, Standard, Basic)
+   - Credit tier param passed to `getProcurementProviders()` API call
+   - Tier badge shown in provider selection list items
+
+8. **API Client** (`frontend/src/lib/api.ts`):
+   - `getAdminSupplierVetting()`, `adminApproveSupplierCredit()`, `adminRejectSupplierCredit()`
+
+### Files Created/Modified
+- `backend/src/config/migrate-supplier-credit.ts` — New migration (18th: supplier_credit_profiles table)
+- `backend/src/services/supplier-credit-vetting.ts` — Heuristic engine (new)
+- `backend/src/routes/admin.ts` — 3 new endpoints (assess, approve, reject), fixed AuthRequest types
+- `backend/src/routes/marketplace.ts` — credit_tier in provider detail response
+- `backend/src/routes/procurement.ts` — creditTier filter, credit_tier in list response
+- `frontend/src/app/marketplace/providers/[id]/page.tsx` — Tier badge
+- `frontend/src/app/procurement/requests/new/page.tsx` — Tier filter dropdown + badge in picker
+- `frontend/src/lib/api.ts` — Supplier credit API methods
+- `backend/src/__tests__/supplier-credit-vetting.test.ts` — 15 tests (new)
+
+### Test Results
+- **15/15 new supplier credit tests passing**
+- **313/314 backend tests passing** (1 pre-existing b2b-categories failure)
+- Backend TypeScript: clean
+- Frontend build: clean
+
+### Key Decisions
+- Supplier credit is separate from buyer/company credit — distinct table, distinct workflows, distinct vetting logic
+- Heuristic is read-only (no DB mutation), purely advisory — admin must explicitly approve
+- Tier-based system (premium/standard/basic) instead of raw numeric scoring for simplicity
+- Order history queries by `company_id` through `users` JOIN (orders are user-level, not company-level)
+- Used `completed`/`paid` statuses instead of non-existent `delivered`/`shipped` for DB enum compatibility
+- `AuthRequest` type used for all endpoints that access `req.userId`
+
+### Critical Context
+- Migration `migrate-supplier-credit.ts` has been run on dev DB (18 migrations total)
+- `supplier_credit_profiles` has a row per company (inserted by migration with defaults) — the heuristic upserts on first run
+- `credit_tier` ENUM values: `unrated`, `basic`, `standard`, `premium`
+- `vetting_status` ENUM values: `unrated`, `pending_review`, `approved`, `rejected`
+- Supplier credit is completely separate from the buyer credit system (Session 7 — `company_credit_status`, `company_credit_transactions`)
+- The procurement provider list filter JOINs on `supplier_credit_profiles` — providers with no profile row are excluded from tier-filtered results
+- Test DB has `supplier_credit_profiles` table applied via the migration script
+
+---
+
+## Session 12: Phase 4.5 — Supplier Credit Enforcement (Buyer Selects Provider)
+
+### Goal
+Add credit enforcement at the point where a buyer selects/accepted a provider quote on a procurement request. Rejected providers are blocked; pending/unrated providers trigger a warning requiring admin override; approved providers are allowed freely.
+
+### Done
+
+1. **Backend Endpoint** (`backend/src/routes/procurement.ts`):
+   - `POST /api/procurement/requests/:requestId/accept-provider/:providerCompanyId`
+   - Validates request belongs to buyer, provider was invited + quoted, request is in `in_review`/`submitted` status
+   - **Credit enforcement logic**:
+     - `rejected` status → 400 with `CREDIT_REJECTED` code
+     - `approved` status → allow (no warning)
+     - all other statuses (`unrated`, `pending_review`, or no profile) → 409 with `CREDIT_NOT_ASSESSED` code if `adminOverride` is false; allow with `supplierCreditWarning` if `adminOverride` is true
+   - On acceptance: marks provider `selected`, request `accepted`, all other quoted providers `declined`
+
+2. **Frontend** (`frontend/src/app/procurement/requests/[id]/page.tsx`):
+   - "Accept Quote" button on each `quoted` provider row when request is `in_review`
+   - Credit warning dialog (amber alert) with "Proceed with Override" / "Cancel" buttons when `CREDIT_NOT_ASSESSED` is returned
+   - Shows warning message when overriding
+   - Loading state per-provider during acceptance
+
+3. **API Client** (`frontend/src/lib/api.ts`):
+   - `acceptProviderQuote(requestId, providerCompanyId, adminOverride?)` method
+
+4. **Tests** (`backend/src/__tests__/supplier-credit-enforcement.test.ts`, 11 tests):
+   - Approved credit provider → allowed (200, DB state verified: selected, accepted, others declined)
+   - Rejected credit provider → blocked (400, CREDIT_REJECTED)
+   - Pending-review without override → 409 (CREDIT_NOT_ASSESSED)
+   - Pending-review with override → allowed (200, with warning)
+   - No credit profile (unrated) without override → 409
+   - No credit profile with override → allowed
+   - Unauthenticated → 401
+   - Non-existent request → 404
+   - Non-existent provider on request → 404
+   - Provider not yet quoted → 400
+   - Request in draft → 400
+
+### Files Created/Modified
+- `backend/src/routes/procurement.ts` — New accept-provider endpoint + credit enforcement logic
+- `frontend/src/app/procurement/requests/[id]/page.tsx` — Accept Quote button, credit warning dialog, override flow
+- `frontend/src/lib/api.ts` — `acceptProviderQuote()` method
+- `backend/src/__tests__/supplier-credit-enforcement.test.ts` — 11 enforcement tests (new)
+
+### Test Results
+- **11/11 new enforcement tests passing**
+- **435/436 backend tests passing** (1 pre-existing b2b-categories failure)
+- Backend TypeScript: clean
+- Frontend TypeScript: clean
+- Frontend build: clean
+
+### Key Decisions
+- Rejected credit is a hard block (400, cannot override) — no bypass possible
+- Pending/unrated uses a warn-then-override pattern (409 → retry with `adminOverride: true`) rather than a separate authorize endpoint
+- No-credit-profile providers are treated as unrated (same as pending_review) instead of automatic rejection
+- Accepting a provider auto-declines all other quoted providers on the same request
+- `vetting_status` ENUM values in migration: `unrated`, `pending_review`, `approved`, `rejected`
+
+### Critical Context
+- zod import was added to `procurement.ts` for the `acceptProviderSchema` validation
+- The `supplier_credit_vetting_status` ENUM values are: `unrated`, `pending_review`, `approved`, `rejected` (not `pending`)
+- The supplier credit profile query uses `vetting_status` and `credit_tier` — missing profile row falls to `pending`/`unrated` treatment
+- The enforcement is server-side only; no client-side price/discount changes are enforced at this stage
+
+### Next Steps
+- Phase 2.5 — Provider team roles (catalog_manager, credit_reviewer, sales_rep, fulfillment_manager)
+- Phase 2.5 — Image upload for provider products/services
+- Phase 5 — Agreements and Fulfillment
+- Phase 6 — Procurement order fulfillment workflow

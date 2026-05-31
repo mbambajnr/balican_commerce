@@ -19,6 +19,10 @@ import b2bRoutes from "./routes/b2b";
 import productMediaRoutes from "./routes/product-media";
 import merchantFeedRoutes from "./routes/merchant-feed";
 import companyVettingRoutes from "./routes/company-vetting";
+import marketplaceRoutes from "./routes/marketplace";
+import providerDashboardRoutes from "./routes/provider-dashboard";
+import procurementRoutes from "./routes/procurement";
+import scoutRoutes from "./routes/scout";
 
 const app = express();
 
@@ -65,6 +69,10 @@ app.use("/api", paymentRoutes);
 app.use("/api", b2bRoutes);
 app.use("/api", productMediaRoutes);
 app.use("/api/company/vetting", companyVettingRoutes);
+app.use("/api", marketplaceRoutes);
+app.use("/api", providerDashboardRoutes);
+app.use("/api", procurementRoutes);
+app.use("/api", scoutRoutes);
 
 const uploadsDir = path.resolve(config.upload.dir);
 app.use("/uploads", express.static(uploadsDir));

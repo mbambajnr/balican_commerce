@@ -657,6 +657,67 @@ router.post("/admin/invoices/:id/send", authenticate, requireAdmin, async (req: 
   }
 });
 
+// Preview invoice PDF
+router.get("/admin/invoices/:id/preview", authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const invResult = await query(
+      `SELECT i.*, o.order_number, o.user_id,
+              u.email, u.first_name, u.last_name
+       FROM invoices i
+       JOIN orders o ON i.order_id = o.id
+       JOIN users u ON o.user_id = u.id
+       WHERE i.id = $1`,
+      [req.params.id]
+    );
+    if (invResult.rows.length === 0) return res.status(404).json({ error: "Invoice not found" });
+    const invoice = invResult.rows[0];
+
+    const orderResult = await query("SELECT * FROM orders WHERE id = $1", [invoice.order_id]);
+    if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+    const order = orderResult.rows[0];
+
+    const orderItems: any[] = typeof order.items === "string" ? JSON.parse(order.items) : order.items || [];
+    const pdfItems: InvoicePdfItem[] = orderItems.map((i: any) => ({
+      description: i.name || i.description,
+      sku: "",
+      quantity: i.quantity || 1,
+      unitPrice: parseFloat(i.price || "0"),
+      lineTotal: parseFloat(i.price || "0") * (i.quantity || 1),
+      productUrl: i.productId ? `${FRONTEND_URL}/products/${i.productId}` : undefined,
+    }));
+
+    const pdfData: InvoicePdfData = {
+      invoiceNumber: invoice.invoice_number,
+      createdAt: invoice.created_at,
+      orderNumber: order.order_number,
+      quotationNumber: order.quotation_id ? order.quotation_id.substring(0, 8) : "—",
+      clientName: `${invoice.first_name} ${invoice.last_name}`.trim() || "Customer",
+      clientEmail: invoice.email,
+      clientPhone: "",
+      clientAddress: "",
+      items: pdfItems,
+      subtotal: parseFloat(invoice.subtotal || "0"),
+      tax: parseFloat(invoice.tax || "0"),
+      total: parseFloat(invoice.total || "0"),
+      amountPaid: parseFloat(invoice.amount_paid || "0"),
+      outstandingAmount: parseFloat(invoice.outstanding_amount || "0"),
+      dueDate: invoice.due_date || "",
+      paymentTerms: invoice.payment_terms || "",
+      notes: invoice.notes || "",
+      currency: "GH₵",
+    };
+
+    const pdfBuffer = await generateInvoicePdf(pdfData);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="invoice-${invoice.invoice_number}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Preview invoice error:", err);
+    res.status(500).json({ error: "Failed to generate PDF preview" });
+  }
+});
+
 /* ── List orders (customer + admin) ── */
 
 router.get("/", authenticate, async (req: AuthRequest, res: Response) => {

@@ -9,4 +9,5 @@ module.exports = {
   forceExit: true,
   detectOpenHandles: true,
   testTimeout: 30000,
+  maxWorkers: 1,
 };

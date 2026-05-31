@@ -455,6 +455,88 @@ router.post("/admin/quotations/:id/send", authenticate, requireAdmin, async (req
   }
 });
 
+// Preview quotation PDF
+router.get("/admin/quotations/:id/preview", authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT q.*, u.first_name, u.last_name, u.email, u.phone
+       FROM quotations q
+       LEFT JOIN users u ON q.customer_id = u.id
+       WHERE q.id = $1`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Quotation not found" });
+    const quotation = result.rows[0];
+
+    const itemsResult = await query(
+      `SELECT qi.*, p.slug as product_slug
+       FROM quotation_items qi
+       LEFT JOIN products p ON qi.product_id = p.id
+       WHERE qi.quotation_id = $1 ORDER BY qi.sort_order`,
+      [quotation.id]
+    );
+    const items = itemsResult.rows;
+
+    // Fetch RFQ for customer info
+    const rfqResult = await query("SELECT * FROM rfqs WHERE id = $1", [quotation.rfq_id]);
+    const rfq = rfqResult.rows[0] || null;
+
+    let clientName: string;
+    let clientEmail: string;
+    let clientPhone = "";
+    let clientAddress = "";
+
+    if (rfq && rfq.source === "guest") {
+      clientName = rfq.contact_name || rfq.company_name || "Guest";
+      clientEmail = rfq.email;
+      clientPhone = rfq.phone || "";
+      clientAddress = rfq.address || "";
+    } else {
+      clientName = `${quotation.first_name || ""} ${quotation.last_name || ""}`.trim() || "Customer";
+      clientEmail = quotation.email || "";
+      clientPhone = quotation.phone || "";
+      clientAddress = rfq?.address || "";
+    }
+
+    const pdfData: QuotationPdfData = {
+      quotationNumber: quotation.quotation_number,
+      createdAt: quotation.created_at,
+      rfqReference: quotation.rfq_id ? quotation.rfq_id.substring(0, 8) : "—",
+      clientName,
+      clientEmail,
+      clientPhone,
+      clientAddress,
+      items: items.map((i: any): QuotationPdfItem => ({
+        description: i.description,
+        sku: i.product_slug || "",
+        quantity: parseFloat(i.quantity),
+        unitPrice: parseFloat(i.unit_price),
+        lineTotal: parseFloat(i.line_total),
+        productUrl: i.product_url || (i.product_slug ? `${FRONTEND_URL}/products/${i.product_slug}` : undefined),
+      })),
+      discountAmount: parseFloat(quotation.discount_amount || "0"),
+      taxAmount: parseFloat(quotation.tax_amount || "0"),
+      serviceFee: parseFloat(quotation.service_fee || "0"),
+      deliveryFee: parseFloat(quotation.delivery_fee || "0"),
+      subtotal: parseFloat(quotation.subtotal || "0"),
+      totalAmount: parseFloat(quotation.total_amount || "0"),
+      validUntil: quotation.valid_until || "",
+      terms: quotation.terms || "",
+      notesToCustomer: quotation.notes_to_customer || "",
+      currency: quotation.currency || "GH₵",
+    };
+
+    const pdfBuffer = await generateQuotationPdf(pdfData);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="quotation-${quotation.quotation_number}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Preview quotation error:", err);
+    res.status(500).json({ error: "Failed to generate PDF preview" });
+  }
+});
+
 // Cancel quotation
 router.post("/admin/quotations/:id/cancel", authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {

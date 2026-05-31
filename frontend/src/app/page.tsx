@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Wrench, ClipboardText, HardHat, Truck, ShieldCheck, Gear, Users, ShoppingBag } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ClipboardText, ShieldCheck, Users, ShoppingBag, CreditCard, Gear, Truck } from "@phosphor-icons/react/dist/ssr";
 import { Reveal, Counter } from "@/lib/reveal";
 import HeroCarousel from "@/components/hero-carousel";
 import FeaturedProductCarousel from "@/components/featured-products";
@@ -10,19 +10,19 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://balican.com";
 
 export const metadata: Metadata = {
-  title: "Bali-Can Limited — Industrial Solutions",
-  description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, installation, maintenance, and B2B procurement.",
+  title: "Bali-Can Limited — B2B Procurement Platform",
+  description: "Ghana's B2B procurement platform for industrial products and services. Submit RFQs, receive competitive quotes from vetted suppliers, manage company credit, and fulfill orders — HVAC, electrical, solar, and more.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Bali-Can Limited — Industrial Solutions",
-    description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, installation, maintenance, and B2B procurement.",
+    title: "Bali-Can Limited — B2B Procurement Platform",
+    description: "Submit RFQs, receive competitive quotes from vetted suppliers, manage company credit, and fulfill orders — HVAC, electrical, solar, and more.",
     type: "website",
     images: [{ url: "/og-default.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Bali-Can Limited — Industrial Solutions",
-    description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+    title: "Bali-Can Limited — B2B Procurement Platform",
+    description: "Ghana's B2B procurement platform. RFQs, competitive quotes, vetted suppliers, company credit.",
   },
 };
 
@@ -35,7 +35,7 @@ const jsonLd = {
       name: "Bali-Can Limited",
       url: siteUrl,
       logo: `${siteUrl}/logo.png`,
-      description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+      description: "B2B procurement platform for industrial products and services across Ghana.",
       address: {
         "@type": "PostalAddress",
         addressLocality: "Accra",
@@ -64,7 +64,7 @@ const jsonLd = {
       name: "Bali-Can Limited",
       url: siteUrl,
       logo: `${siteUrl}/logo.png`,
-      description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, and B2B procurement.",
+      description: "B2B procurement platform for industrial products and services across Ghana. HVAC, electricals, appliances, solar, RFQs, quotes, and company credit.",
       address: {
         "@type": "PostalAddress",
         addressLocality: "Accra",
@@ -84,7 +84,7 @@ const jsonLd = {
       "@id": `${siteUrl}#website`,
       url: siteUrl,
       name: "Bali-Can Limited",
-      description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+      description: "B2B procurement platform for industrial products and services across Ghana.",
       potentialAction: {
         "@type": "SearchAction",
         target: {
@@ -146,11 +146,11 @@ export default async function HomePage() {
               <div>
                 <span className="section-label text-accent">
                   <span className="accent-diamond" />
-                  Marketplace
+                  Product Catalog
                 </span>
-                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Featured Products</h2>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Browse, request, or negotiate</h2>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-soft">
-                  Browse our catalog of industrial products. Search, filter, and find exactly what you need.
+                  Explore our catalog, then submit a procurement request for competitive quotes from vetted suppliers. No hidden pricing.
                 </p>
               </div>
               <Link href="/products" className="hidden items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-bold transition-colors sm:flex">
@@ -175,26 +175,26 @@ export default async function HomePage() {
               <div className="mb-14 max-w-2xl">
                 <span className="section-label text-accent">
                   <span className="accent-diamond" />
-                  Services
+                  How It Works
                 </span>
-                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">How we support your operations</h2>
-                <p className="mt-2 text-sm leading-relaxed text-soft">From installation to maintenance — we handle the full lifecycle so your operations stay running.</p>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Source smarter, not harder</h2>
+                <p className="mt-2 text-sm leading-relaxed text-soft">From submitting requirements to fulfillment — a single platform for the entire procurement lifecycle.</p>
               </div>
             </Reveal>
 
             <div className="grid gap-6 lg:grid-cols-3">
               {[
                 {
-                  icon: Wrench, title: "Installation", desc: "Professional on-site installation. We handle delivery, setup, testing, and commissioning.",
-                  color: "bg-accent-soft text-accent-bold", href: "/booking", label: "Book Installation",
+                  icon: ClipboardText, title: "1. Submit Requirements", desc: "Describe what you need — products, quantities, delivery timeline. Invite specific suppliers or open to all vetted providers.",
+                  color: "bg-accent-soft text-accent-bold", href: "/procurement/requests/new", label: "Start a Request",
                 },
                 {
-                  icon: ClipboardText, title: "Request a Quote", desc: "Need custom pricing for bulk or specialized products? Submit an RFQ and we will respond within hours.",
-                  color: "bg-accent-soft text-accent-bold", href: "/rfq/new", label: "Submit RFQ",
+                  icon: Users, title: "2. Compare Quotes", desc: "Vetted suppliers respond with competitive quotes. Review pricing, credit tiers, and supplier profiles side by side.",
+                  color: "bg-accent-soft text-accent-bold", href: "/marketplace/providers", label: "Browse Suppliers",
                 },
                 {
-                  icon: HardHat, title: "Service Contracts", desc: "Annual and quarterly maintenance contracts with automated renewals, priority dispatch, and dedicated support.",
-                  color: "bg-accent-soft text-accent-bold", href: "/auth/register", label: "Get Started",
+                  icon: ShoppingBag, title: "3. Accept & Fulfill", desc: "Select your preferred quote, convert to an order, and track fulfillment. Approved credit? Pay on terms.",
+                  color: "bg-accent-soft text-accent-bold", href: "/auth/register", label: "Register Your Company",
                 },
               ].map((svc, i) => (
                 <Reveal key={svc.title} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
@@ -239,16 +239,17 @@ export default async function HomePage() {
                   <span className="accent-diamond" />
                   Why Bali-Can
                 </span>
-                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Built for industry</h2>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Built for B2B procurement</h2>
+                <p className="mt-3 max-w-xl mx-auto text-sm leading-relaxed text-zinc-400">A purpose-built platform for industrial buyers and suppliers — not a retail marketplace.</p>
               </div>
             </Reveal>
 
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { icon: Truck, title: "Nationwide Delivery", desc: "We deliver to all 16 regions across Ghana, including remote industrial zones." },
-                { icon: ShieldCheck, title: "Quality Guaranteed", desc: "All products sourced from certified manufacturers with full traceability." },
-                { icon: Gear, title: "End-to-End Service", desc: "From procurement to installation and ongoing maintenance — one partner." },
-                { icon: Users, title: "Dedicated Support", desc: "Account managers assigned to every B2B client for personalized service." },
+                { icon: ClipboardText, title: "Quote-First Sourcing", desc: "Submit RFQs instead of guessing prices. Get competitive quotes from multiple vetted suppliers in one place." },
+                { icon: ShieldCheck, title: "Credit-Vetted Suppliers", desc: "Every supplier assessed for reliability. Premium, standard, and basic tiers — know who you are dealing with." },
+                { icon: CreditCard, title: "Company Credit", desc: "Apply for company-level credit. Approved businesses buy on terms without upfront payment." },
+                { icon: Users, title: "Dedicated Account Management", desc: "Account managers assigned to every B2B client for personalized support from RFQ to fulfillment." },
               ].map((item, i) => (
                 <Reveal key={item.title} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center transition-all duration-300 hover:border-accent/30 hover:bg-white/[0.06] hover:shadow-lg hover:-translate-y-0.5">
@@ -279,16 +280,16 @@ export default async function HomePage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10">
                 <ShieldCheck size={32} className="text-accent" weight="duotone" />
               </div>
-              <h2 className="mt-6 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Ready to get started?</h2>
+              <h2 className="mt-6 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Ready to transform your procurement?</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-zinc-400">
-                Register your company to browse products, request quotes, negotiate pricing, book installations, and manage your orders.
+                Register your company to submit RFQs, receive competitive quotes, apply for credit, and manage orders — all in one platform.
               </p>
               <div className="mt-10 flex flex-wrap justify-center gap-4">
                 <Link href="/auth/register" className="btn-shine btn-primary btn-lg">
                   Register Your Company <ArrowRight size={16} weight="bold" />
                 </Link>
-                <Link href="/products" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-white/40 hover:bg-white/10 active:scale-[0.97]">
-                  Browse Catalog
+                <Link href="/procurement/requests/new" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-white/40 hover:bg-white/10 active:scale-[0.97]">
+                  Submit a Request
                 </Link>
               </div>
             </Reveal>

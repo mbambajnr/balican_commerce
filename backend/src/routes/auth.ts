@@ -330,13 +330,14 @@ router.post("/login", validate(loginSchema), async (req, res: Response) => {
     const { email, password } = req.body;
 
     const result = await query(
-      `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone,
-              u.role, u.company_id, u.company_role, u.account_status,
-              u.credit_limit, u.outstanding_balance, u.store_credit,
-              u.created_at,
-              c.name as company_name, c.status as company_status
-       FROM users u
-       LEFT JOIN companies c ON u.company_id = c.id
+       `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone,
+               u.role, u.company_id, u.company_role, u.account_status,
+               u.credit_limit, u.outstanding_balance, u.store_credit,
+               u.created_at,
+               c.name as company_name, c.status as company_status,
+               c.is_provider
+        FROM users u
+        LEFT JOIN companies c ON u.company_id = c.id
        WHERE u.email = $1`,
       [email]
     );
@@ -407,15 +408,16 @@ router.post("/login", validate(loginSchema), async (req, res: Response) => {
 router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const result = await query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role,
-              u.credit_limit, u.outstanding_balance, u.store_credit,
-              u.company_id, u.company_role, u.account_status,
-              u.created_at,
-              c.name as company_name, c.status as company_status,
-              c.business_type, c.customer_group_id
-       FROM users u
-       LEFT JOIN companies c ON u.company_id = c.id
-       WHERE u.id = $1`,
+       `SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role,
+               u.credit_limit, u.outstanding_balance, u.store_credit,
+               u.company_id, u.company_role, u.account_status,
+               u.created_at,
+               c.name as company_name, c.status as company_status,
+               c.business_type, c.customer_group_id,
+               c.is_provider
+        FROM users u
+        LEFT JOIN companies c ON u.company_id = c.id
+        WHERE u.id = $1`,
       [req.userId]
     );
     if (result.rows.length === 0) {

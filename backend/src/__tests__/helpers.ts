@@ -324,6 +324,7 @@ export async function cleanupTestData() {
     "vetting_submissions",
     "procurement_list_items",
     "procurement_lists",
+    "notifications",
     "company_prices",
     "product_attachments",
     "quotation_events",

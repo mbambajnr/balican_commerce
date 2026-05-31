@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <rect width="800" height="800" fill="#F0F4FF"/>
+  <rect x="150" y="220" width="500" height="260" rx="16" fill="#061633" opacity="0.04" stroke="#061633" stroke-width="2"/>
+  <rect x="200" y="200" width="400" height="30" rx="4" fill="#1848CC" opacity="0.15"/>
+  <rect x="220" y="250" width="100" height="120" rx="6" fill="#1848CC" opacity="0.1" stroke="#1848CC" stroke-width="1"/>
+  <rect x="340" y="250" width="120" height="120" rx="6" fill="#1848CC" opacity="0.1" stroke="#1848CC" stroke-width="1"/>
+  <rect x="480" y="250" width="100" height="120" rx="6" fill="#1848CC" opacity="0.1" stroke="#1848CC" stroke-width="1"/>
+  <rect x="270" y="390" width="260" height="60" rx="8" fill="#D4AF37" opacity="0.12" stroke="#D4AF37" stroke-width="1"/>
+  <text x="400" y="426" text-anchor="middle" fill="#D4AF37" font-family="system-ui" font-size="16" font-weight="600">COOLING</text>
+  <path d="M400 200 Q400 180 380 170" stroke="#1848CC" stroke-width="2" fill="none" opacity="0.4"/>
+  <path d="M400 200 Q400 180 420 170" stroke="#1848CC" stroke-width="2" fill="none" opacity="0.4"/>
+  <path d="M400 200 Q400 180 400 160" stroke="#1848CC" stroke-width="2" fill="none" opacity="0.6"/>
+  <rect x="340" y="520" width="120" height="36" rx="4" fill="#1848CC"/>
+  <text x="400" y="543" text-anchor="middle" fill="white" font-family="system-ui" font-size="13" font-weight="600">HVAC UNIT</text>
+</svg>

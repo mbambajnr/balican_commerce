@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <rect width="800" height="800" fill="#F0F4FF"/>
+  <path d="M300 200 C300 300 500 350 500 450" stroke="#1848CC" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M350 160 C350 260 550 310 550 410" stroke="#D4AF37" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M250 240 C250 340 450 390 450 490" stroke="#061633" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.3"/>
+  <circle cx="300" cy="200" r="10" fill="#1848CC"/>
+  <circle cx="500" cy="450" r="10" fill="#1848CC"/>
+  <circle cx="350" cy="160" r="8" fill="#D4AF37"/>
+  <circle cx="550" cy="410" r="8" fill="#D4AF37"/>
+  <circle cx="250" cy="240" r="8" fill="#061633"/>
+  <circle cx="450" cy="490" r="8" fill="#061633"/>
+  <rect x="310" y="480" width="180" height="100" rx="8" fill="#1848CC" opacity="0.08" stroke="#1848CC" stroke-width="1" stroke-dasharray="4 4"/>
+  <rect x="340" y="600" width="120" height="36" rx="4" fill="#1848CC"/>
+  <text x="400" y="623" text-anchor="middle" fill="white" font-family="system-ui" font-size="13" font-weight="600">CABLES</text>
+</svg>

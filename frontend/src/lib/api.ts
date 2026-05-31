@@ -7,8 +7,10 @@ export function setApiToken(token: string | null) {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  details: any;
+  constructor(public status: number, message: string, details?: any) {
     super(message);
+    this.details = details;
   }
 }
 
@@ -29,7 +31,8 @@ async function request<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new ApiError(res.status, body.error || "Request failed");
+    const err = new ApiError(res.status, body.error || body.message || "Request failed", body);
+    throw err;
   }
 
   return res.json();
@@ -551,6 +554,159 @@ export const api = {
   getVettingDocuments: (companyId: string) =>
     request<{ documents: any[] }>(`/admin/companies/${companyId}/vetting/documents`),
   getVettingDocumentUrl: (docId: string) => `/company/vetting/documents/${docId}/download`,
+
+  // Marketplace
+  getMarketplaceProviders: (params?: { type?: string; region?: string; category?: string; search?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ providers: any[]; pagination: any }>(`/marketplace/providers${qs ? `?${qs}` : ""}`);
+  },
+  getMarketplaceProvider: (id: string) => request<{ provider: any; products: any[]; services: any[] }>(`/marketplace/providers/${id}`),
+  getMarketplaceProducts: (params?: { category?: string; search?: string; provider_id?: string; credit?: string; price_min?: string; price_max?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ products: any[]; pagination: any }>(`/marketplace/products${qs ? `?${qs}` : ""}`);
+  },
+  getMarketplaceServices: (params?: { category?: string; search?: string; provider_id?: string; credit?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ services: any[]; pagination: any }>(`/marketplace/services${qs ? `?${qs}` : ""}`);
+  },
+  getMarketplaceService: (slug: string) => request<{ service: any }>(`/marketplace/services/slug/${slug}`),
+  getMarketplaceCategories: (type?: string) => request<{ categories: any[]; featuredProviders: any[] }>(`/marketplace/categories${type ? `?type=${type}` : ""}`),
+  getMarketplaceProductSuppliers: (id: string) => request<{ suppliers: any[] }>(`/marketplace/products/${id}/suppliers`),
+
+  // Provider profile management
+  getProviderProfile: () => request<{ company: any; profile: any }>("/provider/profile"),
+  updateProviderProfile: (data: any) => request<{ profile: any }>("/provider/profile", { method: "PUT", body: JSON.stringify(data) }),
+
+  // Provider Dashboard
+  getProviderDashboard: () => request<{ stats: any; recentProducts: any[]; recentServices: any[] }>("/provider/dashboard"),
+
+  getProviderOperationsSummary: () =>
+    request<{
+      incomingRequests: number;
+      quotedCount: number;
+      acceptedCount: number;
+      declinedCount: number;
+      creditProfile: { vetting_status: string; credit_tier: string; credit_limit: number; next_review_at: string } | null;
+    }>("/provider/operations/summary"),
+
+  getProviderProducts: (params?: { page?: string; limit?: string; search?: string; status?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ products: any[]; pagination: any }>(`/provider/products${qs ? `?${qs}` : ""}`);
+  },
+  createProviderProduct: (data: any) => request<{ product: any }>("/provider/products", { method: "POST", body: JSON.stringify(data) }),
+  updateProviderProduct: (id: string, data: any) => request<{ product: any }>(`/provider/products/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  toggleProviderProduct: (id: string) => request<{ product: any }>(`/provider/products/${id}/toggle`, { method: "PATCH" }),
+  updateProviderProductInventory: (id: string, data: any) => request<{ product: any }>(`/provider/products/${id}/inventory`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  getProviderServices: (params?: { page?: string; limit?: string; search?: string; status?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ services: any[]; pagination: any }>(`/provider/services${qs ? `?${qs}` : ""}`);
+  },
+  createProviderService: (data: any) => request<{ service: any }>("/provider/services", { method: "POST", body: JSON.stringify(data) }),
+  updateProviderService: (id: string, data: any) => request<{ service: any }>(`/provider/services/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  toggleProviderService: (id: string) => request<{ service: any }>(`/provider/services/${id}/toggle`, { method: "PATCH" }),
+  updateProviderServiceAvailability: (id: string, data: any) => request<{ service: any }>(`/provider/services/${id}/availability`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Procurement Requests (Buyer)
+  getProcurementProviders: (params?: { type?: string; search?: string; creditTier?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ providers: any[]; pagination: any }>(`/procurement/providers${qs ? `?${qs}` : ""}`);
+  },
+  createProcurementRequest: (data: any) => request<{ request: any }>("/procurement/requests", { method: "POST", body: JSON.stringify(data) }),
+  getProcurementRequests: (params?: { page?: string; limit?: string; status?: string; type?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ requests: any[]; pagination: any }>(`/procurement/requests${qs ? `?${qs}` : ""}`);
+  },
+  getProcurementRequest: (id: string) => request<{ request: any }>(`/procurement/requests/${id}`),
+
+  updateProcurementRequest: (id: string, data: any) => request<{ request: any }>(`/procurement/requests/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  updateProcurementRequestStatus: (id: string, status: string) => request<{ success: boolean; status: string }>(`/procurement/requests/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
+  acceptProviderQuote: (requestId: string, providerCompanyId: string, adminOverride?: boolean) =>
+    request<{ success: boolean; supplierCreditWarning?: string }>(`/procurement/requests/${requestId}/accept-provider/${providerCompanyId}`, {
+      method: "POST",
+      body: JSON.stringify({ adminOverride: adminOverride || false }),
+    }),
+
+  convertProcurementToOrder: (requestId: string) =>
+    request<{ success: boolean; order: any }>(`/procurement/requests/${requestId}/convert-to-order`, {
+      method: "POST",
+    }),
+
+  // Procurement Requests (Provider)
+  getProviderProcurementRequests: (params?: { page?: string; limit?: string; status?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ requests: any[]; pagination: any }>(`/provider/procurement/requests${qs ? `?${qs}` : ""}`);
+  },
+  getProviderProcurementRequest: (id: string) => request<{ request: any; items: any[]; otherProviders: any[] }>(`/provider/procurement/requests/${id}`),
+  markProviderProcurementRequestViewed: (id: string) => request<{ success: boolean; status: string }>(`/provider/procurement/requests/${id}/view`, { method: "PATCH" }),
+  respondToProviderProcurementRequest: (id: string, data: { response: string; notes?: string; quoteAmount?: number; quoteDetails?: any }) =>
+    request<{ success: boolean; response: any }>(`/provider/procurement/requests/${id}/respond`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Supplier Credit Vetting (Admin)
+  adminGetSupplierCreditVetting: (providerId: string) =>
+    request<{ vetting: any; profile: any }>(`/admin/providers/${providerId}/credit-vetting`),
+  adminApproveSupplierCredit: (providerId: string, data: { creditTier: string; creditLimit?: number; reviewNotes?: string; nextReviewAt?: string }) =>
+    request<{ success: boolean; profile: any }>(`/admin/providers/${providerId}/credit-vetting/approve`, { method: "POST", body: JSON.stringify(data) }),
+  adminRejectSupplierCredit: (providerId: string, data: { rejectionReason: string; reviewNotes?: string }) =>
+    request<{ success: boolean; profile: any }>(`/admin/providers/${providerId}/credit-vetting/reject`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Procurement Activity Feed
+  getProcurementActivity: (params?: { page?: string; limit?: string; eventType?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ activities: any[]; pagination: any }>(`/procurement/activity${qs ? `?${qs}` : ""}`);
+  },
+  getProviderProcurementActivity: (params?: { page?: string; limit?: string; eventType?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ activities: any[]; pagination: any }>(`/provider/procurement/activity${qs ? `?${qs}` : ""}`);
+  },
+  getAdminProcurementActivity: (params?: { page?: string; limit?: string; eventType?: string; companyId?: string; providerCompanyId?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ activities: any[]; pagination: any }>(`/admin/procurement/activity${qs ? `?${qs}` : ""}`);
+  },
+
+  // Notifications
+  getNotifications: (params?: { page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ notifications: any[]; pagination: any }>(`/notifications${qs ? `?${qs}` : ""}`);
+  },
+  getUnreadCount: () => request<{ unread: number }>("/notifications/unread-count"),
+  markNotificationRead: (id: string) => request<{ success: boolean }>(`/notifications/${id}/read`, { method: "PATCH" }),
+  markAllNotificationsRead: () => request<{ success: boolean }>("/notifications/read-all", { method: "PATCH" }),
+
+  // Scout
+  createScoutRequest: (data: {
+    title: string; description?: string; quantity: number; unit?: string;
+    deliveryLocation?: string; desiredDeliveryDate?: string;
+    budgetMin?: number; budgetMax?: number; notes?: string;
+  }) => request<{ request: any }>("/scout/requests", { method: "POST", body: JSON.stringify(data) }),
+
+  getScoutRequests: (params?: { status?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ requests: any[]; pagination: any }>(`/scout/requests${qs ? `?${qs}` : ""}`);
+  },
+
+  getScoutRequest: (id: string) =>
+    request<{ request: any; quotes: any[] }>(`/scout/requests/${id}`),
+
+  cancelScoutRequest: (id: string) =>
+    request<{ success: boolean }>(`/scout/requests/${id}/cancel`, { method: "PATCH" }),
+
+  acceptScoutQuote: (requestId: string, quoteId: string) =>
+    request<{ success: boolean; order: any }>(`/scout/requests/${requestId}/accept-quote/${quoteId}`, { method: "POST" }),
+
+  getScoutAvailable: (params?: { search?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ requests: any[]; pagination: any }>(`/scout/available${qs ? `?${qs}` : ""}`);
+  },
+
+  getMyScoutQuote: (requestId: string) =>
+    request<{ request: any; quote: any | null }>(`/scout/requests/${requestId}/my-quote`),
+
+  submitScoutQuote: (requestId: string, data: {
+    quotedPrice: number; deliveryDate?: string; paymentTerms?: string; notes?: string;
+  }) => request<{ quote: any }>(`/scout/requests/${requestId}/quote`, { method: "POST", body: JSON.stringify(data) }),
 
   // Generic
   get: <T>(path: string) => request<T>(path),

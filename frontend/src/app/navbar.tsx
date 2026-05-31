@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { List, X, User, ArrowRight, ShoppingBag, FileText, Building } from "@phosphor-icons/react";
+import { List, X, User, ArrowRight, ShoppingBag, FileText, Building, MagnifyingGlass } from "@phosphor-icons/react";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -28,6 +29,9 @@ export default function Navbar() {
 
         {!isAdminAuth && (
           <nav className="hidden items-center gap-8 md:flex">
+            <Link href="/marketplace" className="text-sm text-zinc-300 transition-colors hover:text-white">
+              Marketplace
+            </Link>
             <Link href="/products" className="text-sm text-zinc-300 transition-colors hover:text-white">
               Products
             </Link>
@@ -37,6 +41,16 @@ export default function Navbar() {
             {(user?.role === "admin" || user?.role === "super_admin") && (
               <Link href="/admin" className="text-sm text-zinc-300 transition-colors hover:text-white">
                 Admin
+              </Link>
+            )}
+            {user && (
+              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout"} className="text-sm text-zinc-300 transition-colors hover:text-white">
+                Scout
+              </Link>
+            )}
+            {(user as any)?.is_provider && (
+              <Link href="/provider" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                Provider Dashboard
               </Link>
             )}
           </nav>
@@ -54,6 +68,7 @@ export default function Navbar() {
                     {(user as any).company_name}
                   </div>
                 )}
+                <NotificationBell />
                 <Link href="/account" className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3.5 py-2 text-xs font-medium text-white transition-all hover:bg-white/10">
                   <User size={16} />
                   Account
@@ -98,6 +113,16 @@ export default function Navbar() {
             {(user?.role === "admin" || user?.role === "super_admin") && (
               <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
                 Admin
+              </Link>
+            )}
+            {user && (
+              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout"} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                <MagnifyingGlass size={18} /> Scout
+              </Link>
+            )}
+            {(user as any)?.is_provider && (
+              <Link href="/provider" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                Provider Dashboard
               </Link>
             )}
             <hr className="my-2 border-white/10" />

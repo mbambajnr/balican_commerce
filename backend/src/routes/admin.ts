@@ -10,6 +10,7 @@ import { indexProduct, deleteProductIndex, searchProducts } from "../services/el
 import { notifyAndLog } from "../services/notifications";
 import { getStorageDriver, validateImageFile } from "../services/storage";
 import { assessCreditVetting } from "../services/credit-vetting";
+import { assessSupplierCreditVetting } from "../services/supplier-credit-vetting";
 import {
   getActiveQuestions,
   getFullVettingProfile,
@@ -811,6 +812,7 @@ router.delete("/products/:id", authenticate, requireAdmin, async (req: AuthReque
 router.get("/categories", authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { search, page = "1", limit = "50", all } = req.query;
+    const isAll = all === "true";
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const offset = (pageNum - 1) * limitNum;
@@ -827,21 +829,29 @@ router.get("/categories", authenticate, requireAdmin, async (req: Request, res: 
     const countResult = await query(`SELECT COUNT(*) FROM categories c ${where}`, params);
     const total = parseInt(countResult.rows[0].count);
 
-    const result = await query(
-      `SELECT c.*, c2.name as parent_name,
-        (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) as product_count,
-        (SELECT COUNT(*) FROM categories child WHERE child.parent_category_id = c.id) as child_count
-       FROM categories c
-       LEFT JOIN categories c2 ON c.parent_category_id = c2.id
-       ${where}
-       ORDER BY c.sort_order, c.name
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limitNum, offset]
-    );
+    const q = isAll
+      ? `SELECT c.*, c2.name as parent_name,
+          (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) as product_count,
+          (SELECT COUNT(*) FROM categories child WHERE child.parent_category_id = c.id) as child_count
+         FROM categories c
+         LEFT JOIN categories c2 ON c.parent_category_id = c2.id
+         ${where}
+         ORDER BY c.sort_order, c.name`
+      : `SELECT c.*, c2.name as parent_name,
+          (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) as product_count,
+          (SELECT COUNT(*) FROM categories child WHERE child.parent_category_id = c.id) as child_count
+         FROM categories c
+         LEFT JOIN categories c2 ON c.parent_category_id = c2.id
+         ${where}
+         ORDER BY c.sort_order, c.name
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const qParams = isAll ? params : [...params, limitNum, offset];
+
+    const result = await query(q, qParams);
 
     res.json({
       categories: result.rows,
-      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+      pagination: isAll ? undefined : { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   } catch (err) {
     console.error("Get categories error:", err);
@@ -1740,5 +1750,167 @@ router.get("/companies/:id/vetting/documents", authenticate, requireAdmin, async
     res.status(500).json({ error: "Failed to list documents" });
   }
 });
+
+/* ── Supplier Credit Vetting Workflow ── */
+
+// GET /providers/:id/credit-vetting — Run supplier credit vetting heuristic
+router.get("/providers/:id/credit-vetting", authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const company = await query(
+      "SELECT id FROM companies WHERE id = $1 AND is_provider = true",
+      [req.params.id]
+    );
+    if (company.rows.length === 0) return res.status(404).json({ error: "Provider not found" });
+
+    const vetting = await assessSupplierCreditVetting(req.params.id);
+
+    // Also return existing profile if any
+    const profile = await query(
+      "SELECT * FROM supplier_credit_profiles WHERE company_id = $1",
+      [req.params.id]
+    );
+
+    res.json({ vetting, profile: profile.rows[0] || null });
+  } catch (err) {
+    console.error("Supplier credit vetting error:", err);
+    res.status(500).json({ error: "Failed to run supplier credit vetting" });
+  }
+});
+
+// POST /providers/:id/credit-vetting/approve — Approve supplier with tier + limit
+const approveSupplierCreditSchema = z.object({
+  creditTier: z.enum(["premium", "standard", "basic"]),
+  creditLimit: z.number().min(0).optional(),
+  reviewNotes: z.string().max(5000).optional(),
+  nextReviewAt: z.string().optional(), // ISO date string
+});
+
+router.post(
+  "/providers/:id/credit-vetting/approve",
+  authenticate,
+  requireAdmin,
+  validate(approveSupplierCreditSchema),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const company = await query(
+        "SELECT id FROM companies WHERE id = $1 AND is_provider = true",
+        [req.params.id]
+      );
+      if (company.rows.length === 0) return res.status(404).json({ error: "Provider not found" });
+
+      const { creditTier, creditLimit, reviewNotes, nextReviewAt } = req.body;
+
+      // Upsert supplier credit profile
+      await query(
+        `INSERT INTO supplier_credit_profiles (company_id, vetting_status, credit_tier, credit_limit,
+          review_notes, reviewed_by, reviewed_at, next_review_at)
+         VALUES ($1, 'approved', $2, $3, $4, $5, NOW(), $6::date)
+         ON CONFLICT (company_id) DO UPDATE SET
+          vetting_status = 'approved', credit_tier = $2,
+          credit_limit = COALESCE($3, supplier_credit_profiles.credit_limit),
+          review_notes = $4, reviewed_by = $5, reviewed_at = NOW(),
+          next_review_at = $6::date, updated_at = NOW()`,
+        [req.params.id, creditTier, creditLimit || 0, reviewNotes || null, req.userId!, nextReviewAt || null]
+      );
+
+      const updated = await query("SELECT * FROM supplier_credit_profiles WHERE company_id = $1", [req.params.id]);
+
+      res.json({ success: true, profile: updated.rows[0] });
+    } catch (err) {
+      console.error("Approve supplier credit error:", err);
+      res.status(500).json({ error: "Failed to approve supplier credit" });
+    }
+  }
+);
+
+// POST /providers/:id/credit-vetting/reject — Reject supplier credit vetting
+const rejectSupplierCreditSchema = z.object({
+  rejectionReason: z.string().max(5000),
+  reviewNotes: z.string().max(5000).optional(),
+});
+
+router.post(
+  "/providers/:id/credit-vetting/reject",
+  authenticate,
+  requireAdmin,
+  validate(rejectSupplierCreditSchema),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const company = await query(
+        "SELECT id FROM companies WHERE id = $1 AND is_provider = true",
+        [req.params.id]
+      );
+      if (company.rows.length === 0) return res.status(404).json({ error: "Provider not found" });
+
+      const { rejectionReason, reviewNotes } = req.body;
+
+      await query(
+        `INSERT INTO supplier_credit_profiles (company_id, vetting_status, rejection_reason,
+          review_notes, reviewed_by, reviewed_at)
+         VALUES ($1, 'rejected', $2, $3, $4, NOW())
+         ON CONFLICT (company_id) DO UPDATE SET
+          vetting_status = 'rejected', rejection_reason = $2,
+          review_notes = $3, reviewed_by = $4, reviewed_at = NOW(),
+          credit_tier = 'basic', credit_limit = 0, updated_at = NOW()`,
+        [req.params.id, rejectionReason, reviewNotes || null, req.userId!]
+      );
+
+      const updated = await query("SELECT * FROM supplier_credit_profiles WHERE company_id = $1", [req.params.id]);
+
+      res.json({ success: true, profile: updated.rows[0] });
+    } catch (err) {
+      console.error("Reject supplier credit error:", err);
+      res.status(500).json({ error: "Failed to reject supplier credit" });
+    }
+  }
+);
+
+/* ═══════════════════════════════════════════════
+   OPERATIONS DASHBOARD
+   ═══════════════════════════════════════════════ */
+
+router.get(
+  "/operations/summary",
+  authenticate,
+  requireAdmin,
+  async (_req: Request, res: Response) => {
+    try {
+      const [openProReq, pendingCredit, acceptedNoOrder, recentOrders] = await Promise.all([
+        query(
+          "SELECT COUNT(*) as count FROM procurement_requests WHERE status = ANY($1)",
+          [["submitted", "in_review"]]
+        ),
+        query(
+          "SELECT COUNT(*) as count FROM supplier_credit_profiles WHERE vetting_status = ANY($1)",
+          [["unrated", "pending_review"]]
+        ),
+        query(
+          `SELECT COUNT(*) as count FROM procurement_requests pr
+           WHERE pr.status = 'accepted'
+           AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.procurement_request_id = pr.id)`,
+        ),
+        query(
+          `SELECT o.id, o.order_number, o.total, o.status, o.payment_status,
+                  o.created_at, pr.title as request_title, c.name as company_name
+           FROM orders o
+           JOIN procurement_requests pr ON pr.id = o.procurement_request_id
+           LEFT JOIN companies c ON c.id = pr.company_id
+           ORDER BY o.created_at DESC
+           LIMIT 10`,
+        ),
+      ]);
+
+      res.json({
+        openProcurementRequests: parseInt(openProReq.rows[0].count),
+        pendingSupplierCreditReviews: parseInt(pendingCredit.rows[0].count),
+        acceptedRequestsAwaitingConversion: parseInt(acceptedNoOrder.rows[0].count),
+        recentConvertedOrders: recentOrders.rows,
+      });
+    } catch (err) {
+      console.error("Operations summary error:", err);
+      res.status(500).json({ error: "Failed to fetch operations summary" });
+    }
+  }
+);
 
 export default router;

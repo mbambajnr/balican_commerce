@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <rect width="800" height="800" fill="#F0F4FF"/>
+  <rect x="225" y="200" width="350" height="400" rx="16" fill="#061633" opacity="0.05" stroke="#061633" stroke-width="2"/>
+  <rect x="300" y="240" width="200" height="80" rx="8" fill="#1848CC" opacity="0.15"/>
+  <circle cx="400" cy="280" r="20" fill="#1848CC" opacity="0.3"/>
+  <text x="400" y="286" text-anchor="middle" fill="white" font-family="system-ui" font-size="16" font-weight="bold">ON</text>
+  <rect x="300" y="340" width="200" height="60" rx="6" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <rect x="300" y="420" width="200" height="60" rx="6" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <rect x="300" y="500" width="200" height="60" rx="6" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <rect x="340" y="620" width="120" height="36" rx="4" fill="#1848CC"/>
+  <text x="400" y="643" text-anchor="middle" fill="white" font-family="system-ui" font-size="13" font-weight="600">INVERTER</text>
+  <circle cx="300" cy="280" r="4" fill="#22c55e"/>
+  <circle cx="500" cy="280" r="4" fill="#22c55e"/>
+</svg>

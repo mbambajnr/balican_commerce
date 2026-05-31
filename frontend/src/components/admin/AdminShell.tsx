@@ -8,7 +8,9 @@ import { usePathname } from "next/navigation";
 import {
   Layout, Package, FileText, Wrench, CurrencyCircleDollar,
   Bank, CreditCard, Clock, Users, Tag, ChartBar, SignOut, Building,
+  ClipboardText, Bell,
 } from "@phosphor-icons/react";
+import NotificationBell from "@/components/NotificationBell";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: Layout },
@@ -19,12 +21,14 @@ const navItems = [
   { label: "Quotations", href: "/admin/quotations", icon: FileText },
   { label: "Payments", href: "/admin/payments", icon: CurrencyCircleDollar },
   { label: "Bank Transfers", href: "/admin/bank-transfers", icon: Bank },
+  { label: "Operations", href: "/admin/operations", icon: ClipboardText },
   { label: "Bookings", href: "/admin/bookings", icon: Wrench },
   { label: "Credit Customers", href: "/admin/credit-customers", icon: CreditCard },
   { label: "Overdue Orders", href: "/admin/overdue-orders", icon: Clock },
   { label: "Companies", href: "/admin/companies", icon: Building },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Analytics", href: "/admin/analytics", icon: ChartBar },
+  { label: "Procurement Activity", href: "/admin/procurement/activity", icon: ClipboardText },
 ];
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
@@ -81,7 +85,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             );
           })}
         </nav>
-        <div className="border-t border-white/10 p-4">
+        <div className="border-t border-white/10 p-2 space-y-1">
+          <NotificationBell variant="dark" />
           <button
             onClick={() => { logout(); router.push("/admin/login"); }}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
@@ -95,7 +100,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <header className="lg:hidden flex h-14 items-center gap-3 border-b border-white/10 bg-navy px-4">
           <div className="h-7 w-7 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-xs">S</div>
           <span className="font-semibold text-sm text-white">Admin</span>
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationBell variant="dark" />
             <Link href="/admin/login" className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 px-3.5 py-1.5 text-xs font-medium text-white transition-all hover:bg-white/10">Login</Link>
           </div>
         </header>

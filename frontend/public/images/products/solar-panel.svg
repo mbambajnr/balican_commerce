@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <rect width="800" height="800" fill="#F0F4FF"/>
+  <rect x="100" y="250" width="600" height="300" rx="12" fill="#1848CC" opacity="0.1" stroke="#1848CC" stroke-width="2"/>
+  <rect x="130" y="280" width="120" height="80" rx="4" fill="#1848CC" opacity="0.15" stroke="#1848CC" stroke-width="1"/>
+  <rect x="270" y="280" width="120" height="80" rx="4" fill="#1848CC" opacity="0.15" stroke="#1848CC" stroke-width="1"/>
+  <rect x="410" y="280" width="120" height="80" rx="4" fill="#1848CC" opacity="0.15" stroke="#1848CC" stroke-width="1"/>
+  <rect x="550" y="280" width="120" height="80" rx="4" fill="#1848CC" opacity="0.15" stroke="#1848CC" stroke-width="1"/>
+  <rect x="130" y="380" width="120" height="80" rx="4" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <rect x="270" y="380" width="120" height="80" rx="4" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <rect x="410" y="380" width="120" height="80" rx="4" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <rect x="550" y="380" width="120" height="80" rx="4" fill="#D4AF37" opacity="0.15" stroke="#D4AF37" stroke-width="1"/>
+  <line x1="100" y1="400" x2="700" y2="400" stroke="#1848CC" stroke-width="1" opacity="0.3"/>
+  <rect x="340" y="560" width="120" height="40" rx="4" fill="#061633"/>
+  <text x="400" y="586" text-anchor="middle" fill="white" font-family="system-ui" font-size="14" font-weight="600">SOLAR PANEL</text>
+  <path d="M400 200 L430 250 L370 250 Z" fill="#D4AF37" opacity="0.6"/>
+  <line x1="400" y1="200" x2="400" y2="250" stroke="#D4AF37" stroke-width="2"/>
+</svg>

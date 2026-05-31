@@ -221,7 +221,14 @@ export default function AdminOrderPaymentsPage() {
             </div>
           </div>
           {(order.invoice.status === "issued" || order.invoice.status === "sent" || order.invoice.status === "overdue") && (
-            <div className="mt-4 pt-4 border-t border-light">
+            <div className="mt-4 pt-4 border-t border-light flex gap-2">
+              <a
+                href={`/api/admin/invoices/${order.invoice.id}/preview`}
+                target="_blank"
+                className="btn btn-sm gap-1.5"
+              >
+                <FileText size={14} /> Preview
+              </a>
               <button
                 onClick={async () => {
                   try {

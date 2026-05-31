@@ -88,7 +88,7 @@ describe("Category hierarchy — admin CRUD", () => {
       .send({ isActive: false });
 
     const r = await request(app)
-      .get("/api/admin/categories")
+      .get("/api/admin/categories?all=true")
       .set("Authorization", `Bearer ${adminToken}`);
     expect(r.status).toBe(200);
     const found = r.body.categories.find((c: any) => c.id === childCat.id);

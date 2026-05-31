@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import { ShoppingCart, FileText, UserPlus, Clock } from "@phosphor-icons/react";
 
-export default function ProductClient({ product }: { product: any }) {
+export default function ProductClient({ product, suppliers }: { product: any; suppliers?: any[] }) {
   const router = useRouter();
   const { user } = useAuth();
   const [quantity, setQuantity] = useState(1);
