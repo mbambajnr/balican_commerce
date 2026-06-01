@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import {
   Storefront, Wrench, MagnifyingGlass, Star, SealCheck,
   Buildings, MapPin, ArrowRight, ShoppingBag, FileText,
+  Lightning, Sun, Plug, Gear,
 } from "@phosphor-icons/react";
 import { PageSkeleton } from "@/components/admin/LoadingSkeleton";
 
@@ -65,6 +66,33 @@ export default function MarketplacePage() {
           <ArrowRight size={18} className="ml-auto text-muted group-hover:text-amber-600 transition-colors" weight="bold" />
         </Link>
       </div>
+
+      {/* Category sourcing hub */}
+      <section className="mt-12">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-lg font-semibold text-ink">Source by category</h2>
+          <Link href="/scout/new" className="text-xs text-accent hover:underline">Post a sourcing request</Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {[
+            { name: "HVAC Equipment", slug: "hvac", icon: <Lightning size={22} weight="duotone" />, cls: "bg-blue-600" },
+            { name: "Electrical Supplies", slug: "electrical", icon: <Plug size={22} weight="duotone" />, cls: "bg-amber-600" },
+            { name: "Solar Energy", slug: "solar", icon: <Sun size={22} weight="duotone" />, cls: "bg-amber-500" },
+            { name: "Industrial Equipment", slug: "industrial-equipment", icon: <Gear size={22} weight="duotone" />, cls: "bg-slate-700" },
+            { name: "All Categories", slug: "", icon: <MagnifyingGlass size={22} weight="duotone" />, cls: "bg-accent" },
+          ].map((cat) => (
+            <Link
+              key={cat.name}
+              href={cat.slug ? `/products?category=${cat.slug}` : "/products"}
+              className={`${cat.cls} group relative overflow-hidden rounded-xl p-5 text-white transition hover:shadow-lg hover:-translate-y-0.5`}
+            >
+              <div>{cat.icon}</div>
+              <p className="mt-2 text-sm font-semibold">{cat.name}</p>
+              <p className="mt-0.5 text-[10px] text-white/70">Browse &rarr;</p>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {/* Product Categories */}
       {productCats.length > 0 && (

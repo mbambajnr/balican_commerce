@@ -577,6 +577,12 @@ export const api = {
   getMarketplaceCategories: (type?: string) => request<{ categories: any[]; featuredProviders: any[] }>(`/marketplace/categories${type ? `?type=${type}` : ""}`),
   getMarketplaceProductSuppliers: (id: string) => request<{ suppliers: any[] }>(`/marketplace/products/${id}/suppliers`),
 
+  // Scout feed (supplier-facing open RFQs)
+  getScoutFeed: (params?: { category?: string; requestType?: string; status?: string; location?: string; deadline?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ rfqs: any[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/rfqs/scout-feed${qs ? `?${qs}` : ""}`);
+  },
+
   // Provider profile management
   getProviderProfile: () => request<{ company: any; profile: any }>("/provider/profile"),
   updateProviderProfile: (data: any) => request<{ profile: any }>("/provider/profile", { method: "PUT", body: JSON.stringify(data) }),

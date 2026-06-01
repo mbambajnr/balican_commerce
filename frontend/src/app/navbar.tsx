@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { List, X, User, ArrowRight, ShoppingBag, FileText, Building, MagnifyingGlass } from "@phosphor-icons/react";
+import { List, X, User, ArrowRight, ShoppingBag, FileText, Building, MagnifyingGlass, Storefront } from "@phosphor-icons/react";
 import NotificationBell from "@/components/NotificationBell";
 
 export default function Navbar() {
@@ -35,17 +35,17 @@ export default function Navbar() {
             <Link href="/products" className="text-sm text-zinc-300 transition-colors hover:text-white">
               Products
             </Link>
-            <Link href="/rfq/new" className="text-sm text-zinc-300 transition-colors hover:text-white">
-              Request Quote
+            <Link href="/scout" className="text-sm text-zinc-300 transition-colors hover:text-white">
+              Scout
             </Link>
+            {user && (
+              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} className="text-sm text-zinc-300 transition-colors hover:text-white">
+                My Requests
+              </Link>
+            )}
             {(user?.role === "admin" || user?.role === "super_admin") && (
               <Link href="/admin" className="text-sm text-zinc-300 transition-colors hover:text-white">
                 Admin
-              </Link>
-            )}
-            {user && (
-              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout"} className="text-sm text-zinc-300 transition-colors hover:text-white">
-                Scout
               </Link>
             )}
             {(user as any)?.is_provider && (
@@ -104,20 +104,23 @@ export default function Navbar() {
       {mobileOpen && !isAdminAuth && (
         <div className="border-t border-white/10 bg-navy px-4 pb-6 pt-4 md:hidden">
           <nav className="flex flex-col gap-3">
+            <Link href="/marketplace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+              <Storefront size={18} /> Marketplace
+            </Link>
             <Link href="/products" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
               <ShoppingBag size={18} /> Products
             </Link>
-            <Link href="/rfq/new" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-              <FileText size={18} /> Request Quote
+            <Link href="/scout" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+              <MagnifyingGlass size={18} /> Scout
             </Link>
+            {user && (
+              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                <FileText size={18} /> My Requests
+              </Link>
+            )}
             {(user?.role === "admin" || user?.role === "super_admin") && (
               <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
                 Admin
-              </Link>
-            )}
-            {user && (
-              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout"} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-                <MagnifyingGlass size={18} /> Scout
               </Link>
             )}
             {(user as any)?.is_provider && (

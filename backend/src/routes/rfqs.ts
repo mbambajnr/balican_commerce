@@ -48,6 +48,10 @@ const guestRfqSchema = z.object({
   productSku: z.string().max(100).optional().nullable(),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
   message: z.string().min(1, "Message/specification is required").max(5000, "Message too long"),
+  categoryId: z.string().uuid().optional().nullable(),
+  requestType: z.enum(["product_sourcing", "service_request", "general"]).optional().default("product_sourcing"),
+  deliveryLocation: z.string().max(255).optional().nullable(),
+  deadlineAt: z.string().datetime().optional().nullable(),
   utm_source: z.string().max(100).optional().nullable(),
   utm_campaign: z.string().max(200).optional().nullable(),
   utm_medium: z.string().max(100).optional().nullable(),
@@ -66,27 +70,35 @@ router.post("/guest", validate(guestRfqSchema), async (req: any, res: Response) 
     }
 
     const { companyName, contactName, email, phone, address, productId, productName, productSku, quantity, message,
+      categoryId, requestType, deliveryLocation, deadlineAt,
       utm_source, utm_campaign, utm_medium, utm_term, utm_content, gclid, fbclid, referrer_url } = req.body;
 
     // Look up product for snapshot if productId provided
     let resolvedProductName = productName;
     let resolvedProductSku = productSku;
+    let resolvedCategoryId = categoryId || null;
     if (productId) {
-      const prod = await query("SELECT name, sku FROM products WHERE id = $1", [productId]);
+      const prod = await query("SELECT name, sku, category_id FROM products WHERE id = $1", [productId]);
       if (prod.rows.length > 0) {
         resolvedProductName = prod.rows[0].name;
         resolvedProductSku = prod.rows[0].sku || productSku;
+        if (!resolvedCategoryId && prod.rows[0].category_id) {
+          resolvedCategoryId = prod.rows[0].category_id;
+        }
       }
     }
 
     const result = await query(
       `INSERT INTO rfqs (source, status, company_name, contact_name, email, phone, address,
         product_id, product_name, product_sku, quantity, message,
+        category_id, request_type, delivery_location, deadline_at,
         utm_source, utm_campaign, utm_medium, utm_term, utm_content, gclid, fbclid, referrer_url)
        VALUES ('guest', 'pending_review', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-         $11, $12, $13, $14, $15, $16, $17, $18)
+         $11, $12, $13, $14,
+         $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING *`,
       [companyName, contactName, email, phone, address, productId || null, resolvedProductName || null, resolvedProductSku || null, quantity, message,
+       resolvedCategoryId, requestType || "product_sourcing", deliveryLocation || null, deadlineAt || null,
        utm_source || null, utm_campaign || null, utm_medium || null, utm_term || null, utm_content || null, gclid || null, fbclid || null, referrer_url || null]
     );
 
@@ -104,6 +116,10 @@ const createRfqSchema = z.object({
   quantity: z.number().int().positive(),
   deliveryRequirements: z.string().optional(),
   notes: z.string().optional(),
+  categoryId: z.string().uuid().optional().nullable(),
+  requestType: z.enum(["product_sourcing", "service_request", "general"]).optional().default("product_sourcing"),
+  deliveryLocation: z.string().max(255).optional().nullable(),
+  deadlineAt: z.string().datetime().optional().nullable(),
   utm_source: z.string().max(100).optional().nullable(),
   utm_campaign: z.string().max(200).optional().nullable(),
   utm_medium: z.string().max(100).optional().nullable(),
@@ -117,15 +133,27 @@ const createRfqSchema = z.object({
 router.post("/", authenticate, validate(createRfqSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { productId, quantity, deliveryRequirements, notes,
+      categoryId, requestType, deliveryLocation, deadlineAt,
       utm_source, utm_campaign, utm_medium, utm_term, utm_content, gclid, fbclid, referrer_url } = req.body;
+
+    let resolvedCategoryId = categoryId || null;
+    if (!resolvedCategoryId && productId) {
+      const prod = await query("SELECT category_id FROM products WHERE id = $1", [productId]);
+      if (prod.rows.length > 0 && prod.rows[0].category_id) {
+        resolvedCategoryId = prod.rows[0].category_id;
+      }
+    }
 
     const result = await query(
       `INSERT INTO rfqs (user_id, product_id, quantity, delivery_requirements, notes, source,
+        category_id, request_type, delivery_location, deadline_at,
         utm_source, utm_campaign, utm_medium, utm_term, utm_content, gclid, fbclid, referrer_url)
        VALUES ($1, $2, $3, $4, $5, 'registered',
-         $6, $7, $8, $9, $10, $11, $12, $13)
+         $6, $7, $8, $9,
+         $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
       [req.userId, productId, quantity, deliveryRequirements || null, notes || null,
+       resolvedCategoryId, requestType || "product_sourcing", deliveryLocation || null, deadlineAt || null,
        utm_source || null, utm_campaign || null, utm_medium || null, utm_term || null, utm_content || null, gclid || null, fbclid || null, referrer_url || null]
     );
 
@@ -151,6 +179,10 @@ const bulkRfqSchema = z.object({
   email: z.string().email().optional().nullable(),
   phone: z.string().max(50).optional().nullable(),
   address: z.string().max(2000).optional().nullable(),
+  categoryId: z.string().uuid().optional().nullable(),
+  requestType: z.enum(["product_sourcing", "service_request", "general"]).optional().default("product_sourcing"),
+  deliveryLocation: z.string().max(255).optional().nullable(),
+  deadlineAt: z.string().datetime().optional().nullable(),
   utm_source: z.string().max(100).optional().nullable(),
   utm_campaign: z.string().max(200).optional().nullable(),
   utm_medium: z.string().max(100).optional().nullable(),
@@ -177,6 +209,7 @@ router.post("/bulk", validate(bulkRfqSchema), async (req: AuthRequest, res: Resp
     const isAuthenticated = !!req.userId;
     const { items, message, deliveryRequirements, notes,
       companyName, contactName, email, phone, address,
+      categoryId, requestType, deliveryLocation, deadlineAt,
       utm_source, utm_campaign, utm_medium, utm_term, utm_content, gclid, fbclid, referrer_url } = req.body;
 
     // Guest rate limiting
@@ -220,21 +253,24 @@ router.post("/bulk", validate(bulkRfqSchema), async (req: AuthRequest, res: Resp
         const { productId, quantity } = items[i];
 
         const prodResult = await client.query(
-          "SELECT id, name, sku FROM products WHERE id = $1", [productId]
+          "SELECT id, name, sku, category_id FROM products WHERE id = $1", [productId]
         );
         if (prodResult.rows.length === 0) {
           errors.push({ index: i, message: `Product not found: ${productId}` });
           continue;
         }
         const product = prodResult.rows[0];
+        const resolvedCategoryId = categoryId || product.category_id || null;
 
         const insertResult = await client.query(
           `INSERT INTO rfqs (user_id, source, company_name, contact_name, email, phone, address,
             product_id, product_name, product_sku, quantity,
             message, delivery_requirements, notes,
+            category_id, request_type, delivery_location, deadline_at,
             utm_source, utm_campaign, utm_medium, utm_term, utm_content, gclid, fbclid, referrer_url)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-             $15, $16, $17, $18, $19, $20, $21, $22)
+             $15, $16, $17, $18,
+             $19, $20, $21, $22, $23, $24, $25, $26)
            RETURNING *`,
           [
             isAuthenticated ? req.userId : null,
@@ -242,6 +278,7 @@ router.post("/bulk", validate(bulkRfqSchema), async (req: AuthRequest, res: Resp
             resolvedCompanyName, resolvedContactName, resolvedEmail, resolvedPhone, resolvedAddress,
             product.id, product.name, product.sku, quantity,
             message || null, deliveryRequirements || null, notes || null,
+            resolvedCategoryId, requestType || "product_sourcing", deliveryLocation || null, deadlineAt || null,
             utm_source || null, utm_campaign || null, utm_medium || null,
             utm_term || null, utm_content || null, gclid || null, fbclid || null, referrer_url || null,
           ]
@@ -297,6 +334,94 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
   } catch (err) {
     console.error("Get RFQs error:", err);
     res.status(500).json({ error: "Failed to fetch RFQs" });
+  }
+});
+
+/* ── Supplier-facing Scout feed (open RFQs that suppliers can browse) ── */
+
+router.get("/scout-feed", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    // Verify user has an approved active company
+    const userResult = await query(
+      `SELECT u.company_id, u.account_status, c.status as company_status
+       FROM users u LEFT JOIN companies c ON u.company_id = c.id WHERE u.id = $1`,
+      [req.userId]
+    );
+    const userRow = userResult.rows[0];
+    if (!userRow?.company_id || userRow.account_status !== "active" || userRow.company_status !== "active") {
+      return res.status(403).json({ error: "Active company account required" });
+    }
+
+    const isAdmin = req.userRole === "admin" || req.userRole === "super_admin";
+
+    const { category, requestType, status, location, deadline, page = "1", limit = "20" } = req.query;
+    const pageNum = Math.max(1, parseInt(page as string));
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    // Open statuses — buyers can also filter by specific status
+    const openStatuses = ["pending", "pending_review", "under_review"];
+    if (status && openStatuses.includes(status as string)) {
+      conditions.push(`r.status = $${params.length + 1}`);
+      params.push(status);
+    } else {
+      conditions.push(`r.status = ANY($${params.length + 1})`);
+      params.push(openStatuses);
+    }
+
+    if (category) {
+      conditions.push(`(cat.slug = $${params.length + 1} OR cat.id::text = $${params.length + 1})`);
+      params.push(category);
+    }
+    if (requestType) {
+      conditions.push(`r.request_type = $${params.length + 1}`);
+      params.push(requestType);
+    }
+    if (location) {
+      conditions.push(`r.delivery_location ILIKE $${params.length + 1}`);
+      params.push(`%${location}%`);
+    }
+    if (deadline === "closing_soon") {
+      conditions.push(`r.deadline_at IS NOT NULL AND r.deadline_at <= NOW() + INTERVAL '7 days'`);
+    } else if (deadline === "open") {
+      conditions.push(`r.deadline_at IS NULL OR r.deadline_at > NOW()`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const [listResult, countResult] = await Promise.all([
+      query(
+        `SELECT r.id, r.source, r.product_id, r.product_name, r.product_sku,
+                r.quantity, r.message, r.request_type, r.delivery_location,
+                r.deadline_at, r.status, r.created_at, r.updated_at,
+                cat.name as category_name, cat.slug as category_slug,
+                p.slug as product_slug,
+                ${isAdmin
+                  ? "r.company_name, r.contact_name, r.email, r.phone, r.address"
+                  : "NULL::varchar as company_name, NULL::varchar as contact_name, NULL::varchar as email, NULL::varchar as phone, NULL::text as address"
+                }
+         FROM rfqs r
+         LEFT JOIN categories cat ON r.category_id = cat.id
+         LEFT JOIN products p ON r.product_id = p.id
+         ${where}
+         ORDER BY r.deadline_at ASC NULLS LAST, r.created_at DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limitNum, offset]
+      ),
+      query(`SELECT COUNT(*) FROM rfqs r LEFT JOIN categories cat ON r.category_id = cat.id ${where}`, params),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+    res.json({
+      rfqs: listResult.rows,
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+    });
+  } catch (err) {
+    console.error("Scout feed error:", err);
+    res.status(500).json({ error: "Failed to fetch scout feed" });
   }
 });
 

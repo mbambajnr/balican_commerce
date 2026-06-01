@@ -1,253 +1,166 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { useSession } from "next-auth/react";
 import {
-  MagnifyingGlass, Plus, ArrowRight, CheckCircle,
-  XCircle, Clock, Warning, Package, Wrench,
+  Plus, ArrowRight, CheckCircle, Clock, FileText,
+  Storefront, Users, SealCheck, Lightning, ChartBar,
 } from "@phosphor-icons/react";
 
-const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  open: {
-    label: "Open",
-    color: "bg-blue-50 text-blue-700",
-    icon: <Clock size={12} weight="fill" />,
+const STEPS = [
+  {
+    icon: <FileText size={28} weight="duotone" />,
+    title: "1. Submit your request",
+    desc: "Tell us what you need — product, quantity, delivery location, and timeline. No account required to start.",
   },
-  awarded: {
-    label: "Awarded",
-    color: "bg-emerald-50 text-emerald-700",
-    icon: <CheckCircle size={12} weight="fill" />,
+  {
+    icon: <Users size={28} weight="duotone" />,
+    title: "2. Receive supplier quotes",
+    desc: "Verified suppliers in your category review your request and submit competitive quotes with pricing and delivery estimates.",
   },
-  cancelled: {
-    label: "Cancelled",
-    color: "bg-gray-100 text-gray-500",
-    icon: <XCircle size={12} weight="fill" />,
+  {
+    icon: <CheckCircle size={28} weight="duotone" />,
+    title: "3. Compare & accept",
+    desc: "Review all quotes side-by-side, check supplier profiles, and accept the best offer. We handle the rest.",
   },
-  expired: {
-    label: "Expired",
-    color: "bg-amber-50 text-amber-700",
-    icon: <Warning size={12} weight="fill" />,
+  {
+    icon: <Lightning size={28} weight="duotone" />,
+    title: "4. Fulfilled",
+    desc: "Your accepted quote is converted into an order. Track fulfillment and manage delivery from your dashboard.",
   },
-};
+];
 
-function RequestCard({ r }: { r: any }) {
-  const meta = STATUS_META[r.status] ?? { label: r.status, color: "bg-gray-100 text-gray-600", icon: null };
-  const quoteCount = Number(r.quote_count);
+const CATEGORIES = [
+  { name: "HVAC Equipment", slug: "hvac", color: "from-blue-500 to-cyan-500" },
+  { name: "Electrical Supplies", slug: "electrical", color: "from-amber-500 to-orange-500" },
+  { name: "Solar Energy", slug: "solar", color: "from-yellow-400 to-amber-500" },
+  { name: "Industrial Equipment", slug: "industrial", color: "from-slate-600 to-slate-800" },
+  { name: "Plumbing", slug: "plumbing", color: "from-teal-500 to-emerald-500" },
+  { name: "Security Systems", slug: "security", color: "from-red-500 to-rose-500" },
+];
+
+export default function ScoutLandingPage() {
+  const { data: session } = useSession();
 
   return (
-    <Link
-      href={`/scout/${r.id}`}
-      className="flex items-center justify-between gap-4 rounded-xl border border-border bg-white p-4 transition-shadow hover:shadow-sm"
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-ink truncate">{r.title}</p>
-          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${meta.color}`}>
-            {meta.icon}
-            {meta.label}
-          </span>
-          {r.request_type === "service" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
-              <Wrench size={10} weight="fill" /> Service
-            </span>
-          )}
-          {r.category_name && (
-            <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium text-muted border border-border">
-              {r.category_name}
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 text-xs text-muted">
-          Qty {r.quantity}{r.unit ? ` ${r.unit}` : ""}
-          {r.delivery_location ? ` · ${r.delivery_location}` : ""}
-          {r.desired_delivery_date ? ` · By ${new Date(r.desired_delivery_date).toLocaleDateString()}` : ""}
-        </p>
-        <p className="mt-1 text-xs text-soft">
-          {quoteCount === 0 ? "No quotes yet" : `${quoteCount} quote${quoteCount !== 1 ? "s" : ""} received`}
-          {" · "}
-          {new Date(r.created_at).toLocaleDateString()}
-        </p>
-      </div>
-      <ArrowRight size={18} className="shrink-0 text-muted" />
-    </Link>
-  );
-}
-
-function Section({
-  title, description, requests, emptyIcon, emptyTitle, emptyBody,
-}: {
-  title: string;
-  description?: string;
-  requests: any[];
-  emptyIcon?: React.ReactNode;
-  emptyTitle?: string;
-  emptyBody?: string;
-}) {
-  if (requests.length === 0 && !emptyTitle) return null;
-  return (
-    <div>
-      <div className="mb-3 flex items-baseline gap-2">
-        <h2 className="text-sm font-semibold text-ink">{title}</h2>
-        {requests.length > 0 && (
-          <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-muted border border-border">
-            {requests.length}
-          </span>
-        )}
-        {description && <p className="ml-auto text-xs text-muted">{description}</p>}
-      </div>
-      {requests.length === 0 && emptyTitle ? (
-        <div className="rounded-xl border border-dashed border-border px-6 py-8 text-center">
-          {emptyIcon && <div className="mx-auto mb-2 text-muted">{emptyIcon}</div>}
-          <p className="text-sm font-medium text-ink">{emptyTitle}</p>
-          {emptyBody && <p className="mt-0.5 text-xs text-muted">{emptyBody}</p>}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {requests.map((r) => <RequestCard key={r.id} r={r} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function ScoutPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [requests, setRequests] = useState<any[]>([]);
-  const [fetching, setFetching] = useState(true);
-  const [filterStatus, setFilterStatus] = useState("active");
-
-  useEffect(() => {
-    if (loading) return;
-    if (!user) { router.push("/auth/login"); return; }
-    load();
-  }, [user, loading]);
-
-  const load = () => {
-    setFetching(true);
-    // Load all requests — we group client-side
-    api.getScoutRequests({ limit: "100" })
-      .then((r) => setRequests(r.requests))
-      .catch(() => {})
-      .finally(() => setFetching(false));
-  };
-
-  if (loading || !user) return null;
-
-  // Grouped views
-  const openWithQuotes   = requests.filter((r) => r.status === "open" && Number(r.quote_count) > 0);
-  const openNoQuotes     = requests.filter((r) => r.status === "open" && Number(r.quote_count) === 0);
-  const awarded          = requests.filter((r) => r.status === "awarded");
-  const closed           = requests.filter((r) => r.status === "cancelled" || r.status === "expired");
-
-  const activeCount = openWithQuotes.length + openNoQuotes.length;
-  const totalCount  = requests.length;
-
-  const showActive  = filterStatus === "active" || filterStatus === "";
-  const showClosed  = filterStatus === "closed" || filterStatus === "";
-
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">Scout Requests</h1>
-          <p className="mt-1 text-sm text-muted">Request quotes from multiple suppliers for any product or service.</p>
-        </div>
-        <Link href="/scout/new" className="btn btn-primary gap-2">
-          <Plus size={16} weight="bold" />
-          New Scout Request
-        </Link>
-      </div>
-
-      {/* View toggle */}
-      <div className="mt-6 flex items-center gap-2">
-        {[
-          { key: "active", label: `Active (${activeCount})` },
-          { key: "awarded", label: `Awarded (${awarded.length})` },
-          { key: "closed", label: `Closed (${closed.length})` },
-          { key: "", label: "All" },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilterStatus(key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              filterStatus === key
-                ? "bg-accent text-white"
-                : "bg-surface text-muted hover:bg-border hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="mt-6 space-y-8">
-        {fetching ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 animate-pulse rounded-xl bg-surface" />
-            ))}
+    <div className="min-h-screen bg-white">
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-navy-dark via-navy to-accent py-20 sm:py-28">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
+        <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-6">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+            <SealCheck size={12} /> B2B Procurement Platform
           </div>
-        ) : totalCount === 0 ? (
-          /* First-time / totally empty state */
-          <div className="rounded-xl border border-dashed border-border py-20 text-center">
-            <MagnifyingGlass size={48} className="mx-auto text-muted" weight="light" />
-            <p className="mt-4 text-sm font-medium text-ink">No Scout requests yet</p>
-            <p className="mt-1 text-sm text-muted">Post a request and let verified suppliers compete for your business.</p>
-            <Link href="/scout/new" className="btn btn-primary mt-6 gap-2">
-              <Plus size={16} weight="bold" />
-              Create your first request
+          <h1 className="mt-6 font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
+            Source smarter with
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-gold to-amber-300">Scout</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-2xl text-base text-white/70">
+            Post a single request and let multiple verified suppliers compete for your business.
+            Compare quotes, check credentials, and choose the best offer — all in one place.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {session?.user ? (
+              <Link href="/scout/new" className="btn inline-flex items-center gap-2 border border-white/30 bg-white text-navy hover:bg-white/90">
+                <Plus size={16} weight="bold" />
+                New Scout Request
+              </Link>
+            ) : (
+              <Link href="/rfq/new" className="btn inline-flex items-center gap-2 border border-white/30 bg-white text-navy hover:bg-white/90">
+                <FileText size={16} weight="bold" />
+                Submit a Request
+              </Link>
+            )}
+            <Link href="/marketplace" className="btn inline-flex items-center gap-2 border border-white/20 text-white hover:bg-white/10">
+              <Storefront size={16} />
+              Browse Marketplace
             </Link>
           </div>
-        ) : (
-          <>
-            {/* Open — awaiting action */}
-            {(showActive || filterStatus === "active") && openWithQuotes.length > 0 && (
-              <Section
-                title="Quotes ready to review"
-                description="These requests have supplier quotes waiting for your decision."
-                requests={openWithQuotes}
-              />
-            )}
+          {session?.user && (
+            <Link href="/scout/dashboard" className="mt-4 inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white">
+              View my dashboard <ArrowRight size={12} />
+            </Link>
+          )}
+        </div>
+      </section>
 
-            {/* Open — no quotes yet */}
-            {(showActive || filterStatus === "active") && (
-              <Section
-                title="Waiting for quotes"
-                requests={openNoQuotes}
-                emptyTitle={filterStatus === "active" ? "All open requests have quotes" : undefined}
-                emptyBody="Check the 'Quotes ready' section above."
-              />
-            )}
+      {/* How it works */}
+      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <div className="text-center">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-ink">How Scout works</h2>
+          <p className="mt-2 text-sm text-muted">From request to fulfillment in four simple steps</p>
+        </div>
+        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          {STEPS.map((s) => (
+            <div key={s.title} className="relative rounded-xl border border-border bg-surface/50 p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                {s.icon}
+              </div>
+              <h3 className="mt-4 text-sm font-semibold text-ink">{s.title}</h3>
+              <p className="mt-2 text-xs text-muted leading-relaxed">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-            {/* Awarded */}
-            {(filterStatus === "awarded" || filterStatus === "") && (
-              <Section
-                title="Awarded"
-                description="Quote accepted — order created."
-                requests={awarded}
-                emptyTitle={filterStatus === "awarded" ? "No awarded requests yet" : undefined}
-                emptyBody="Accept a quote from an open request to convert it into an order."
-              />
-            )}
+      {/* Browse by Category */}
+      <section className="bg-surface/50 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="text-center">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-ink">Source by category</h2>
+            <p className="mt-2 text-sm text-muted">Find suppliers for your specific industry needs</p>
+          </div>
+          <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {CATEGORIES.map((cat) => (
+              <Link
+                key={cat.slug}
+                href={`/scout/new?category=${cat.slug}`}
+                className={`group relative overflow-hidden rounded-xl bg-gradient-to-br ${cat.color} p-5 text-white transition hover:shadow-lg hover:-translate-y-0.5`}
+              >
+                <p className="relative text-sm font-semibold">{cat.name}</p>
+                <p className="relative mt-1 text-[10px] text-white/70">Source now &rarr;</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            {/* Closed / cancelled / expired */}
-            {showClosed && (
-              <Section
-                title="Closed"
-                description="Cancelled or expired requests."
-                requests={closed}
-                emptyTitle={filterStatus === "closed" ? "No closed requests" : undefined}
-              />
-            )}
-          </>
-        )}
-      </div>
+      {/* Why Scout */}
+      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <div className="grid gap-8 lg:grid-cols-3">
+          <div className="rounded-xl border border-border p-6">
+            <ChartBar size={24} className="text-accent" weight="duotone" />
+            <h3 className="mt-3 text-sm font-semibold text-ink">Competitive pricing</h3>
+            <p className="mt-1 text-xs text-muted">Multiple suppliers bid on your request, ensuring you get the best market rate.</p>
+          </div>
+          <div className="rounded-xl border border-border p-6">
+            <SealCheck size={24} className="text-accent" weight="duotone" />
+            <h3 className="mt-3 text-sm font-semibold text-ink">Verified suppliers</h3>
+            <p className="mt-1 text-xs text-muted">All suppliers are vetted with active company accounts and credit assessments.</p>
+          </div>
+          <div className="rounded-xl border border-border p-6">
+            <Clock size={24} className="text-accent" weight="duotone" />
+            <h3 className="mt-3 text-sm font-semibold text-ink">Save time</h3>
+            <p className="mt-1 text-xs text-muted">One request reaches dozens of suppliers. No more cold calling or emailing individually.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="bg-navy py-16 text-center">
+        <div className="mx-auto max-w-2xl px-4 sm:px-6">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-white">Ready to start sourcing?</h2>
+          <p className="mt-2 text-sm text-white/60">Join thousands of Ghanaian businesses using Bali-Can to find the best suppliers.</p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/rfq/new" className="btn inline-flex items-center gap-2 bg-white text-navy hover:bg-white/90">
+              Submit a Request <ArrowRight size={14} weight="bold" />
+            </Link>
+            <Link href="/products" className="btn inline-flex items-center gap-2 border border-white/20 text-white hover:bg-white/10">
+              Browse Products
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
