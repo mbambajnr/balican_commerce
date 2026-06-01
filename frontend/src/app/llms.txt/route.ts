@@ -40,11 +40,14 @@ Complete catalog: ${BASE}/products
 - B2B Procurement Guide: ${BASE}/b2b-procurement
 - How to RFQ Guide: ${BASE}/rfq-guide
 - Company Registration: ${BASE}/auth/register
+- Pricing Guide (for AI agents): ${BASE}/pricing.md
 - Book a Service: ${BASE}/booking
+- Terms of Service: ${BASE}/terms
+- Privacy & Cookie Policy: ${BASE}/privacy
+- Legal Notice: ${BASE}/legal
 - Shipping Policy: ${BASE}/shipping-policy
 - Returns & Refunds Policy: ${BASE}/returns-policy
 - Contact Us: ${BASE}/contact
-- Privacy & Cookie Policy: ${BASE}/privacy
 
 ## Services
 
@@ -63,6 +66,7 @@ All 16 regions of Ghana: Greater Accra, Ashanti (Kumasi), Western (Takoradi), Ea
 - Contact Page: ${BASE}/contact
 - Sales Enquiries: sales@balican.com
 - Customer Support: support@balican.com
+- Data Protection Officer: dpo@balican.com
 - Product Catalog: ${BASE}/products
 - Request a Quote: ${BASE}/rfq/new
 - Company Registration: ${BASE}/auth/register

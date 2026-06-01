@@ -1004,6 +1004,214 @@ router.post("/paystack-webhook", async (req, res: Response) => {
   }
 });
 
+/* ═══════════════════════════════════════════
+   ORDER LIFECYCLE — Buyer/Supplier transitions
+═══════════════════════════════════════════ */
+
+/**
+ * Valid lifecycle transitions:
+ *   pending → confirmed (supplier)
+ *   confirmed → processing (supplier)
+ *   processing → ready_or_shipped (supplier)
+ *   ready_or_shipped → delivered (supplier)
+ *   delivered → completed (buyer)
+ *
+ * Cancellation:
+ *   pending → cancelled (buyer or supplier, reason required)
+ *   confirmed → cancelled (supplier only, reason required)
+ *   processing → cancelled (supplier only, reason required)
+ */
+
+const SUPPLIER_FORWARD_TRANSITIONS: Record<string, string> = {
+  pending: "confirmed",
+  confirmed: "processing",
+  processing: "ready_or_shipped",
+  ready_or_shipped: "delivered",
+};
+
+const SUPPLIER_CANCEL_FROM = ["pending", "confirmed", "processing"];
+const BUYER_CANCEL_FROM = ["pending"];
+
+const lifecycleSchema = z.object({
+  action: z.enum(["advance", "complete", "cancel"]),
+  note: z.string().max(1000).optional(),
+});
+
+router.patch("/:id/lifecycle", authenticate, validate(lifecycleSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const { action, note } = req.body;
+
+    // Get user info with company
+    const userRow = await query(
+      `SELECT u.id, u.company_id, u.account_status, c.is_provider, c.verification_status, c.status as company_status
+       FROM users u LEFT JOIN companies c ON c.id = u.company_id
+       WHERE u.id = $1`,
+      [req.userId]
+    );
+    if (!userRow.rows[0]?.company_id) {
+      return res.status(403).json({ error: "No company associated with this account" });
+    }
+    const user = userRow.rows[0];
+
+    // Load order
+    const orderResult = await query(
+      `SELECT o.*, sq.provider_company_id as supplier_company_id
+       FROM orders o
+       LEFT JOIN scout_quotes sq ON sq.order_id = o.id
+       WHERE o.id = $1`,
+      [req.params.id]
+    );
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+    const order = orderResult.rows[0];
+
+    // Determine role
+    const isBuyer = order.user_id === req.userId;
+    const isSupplier = user.is_provider && order.supplier_company_id === user.company_id;
+    const isAdmin = req.userRole === "admin" || req.userRole === "super_admin";
+
+    if (!isBuyer && !isSupplier && !isAdmin) {
+      return res.status(403).json({ error: "You are not authorized to update this order" });
+    }
+
+    const currentStatus = order.status;
+    let newStatus: string | null = null;
+
+    // Prevent changing final-state orders
+    if (currentStatus === "completed") {
+      return res.status(400).json({ error: "Completed orders cannot be changed" });
+    }
+    if (currentStatus === "cancelled") {
+      return res.status(400).json({ error: "Cancelled orders cannot be changed" });
+    }
+
+    if (action === "advance") {
+      // Only supplier (or admin) can advance
+      if (!isSupplier && !isAdmin) {
+        return res.status(403).json({ error: "Only the supplier can advance order status" });
+      }
+      newStatus = SUPPLIER_FORWARD_TRANSITIONS[currentStatus];
+      if (!newStatus) {
+        return res.status(400).json({
+          error: `Cannot advance from status "${currentStatus}"`,
+          currentStatus,
+        });
+      }
+    } else if (action === "complete") {
+      // Only buyer (or admin) can mark as completed
+      if (!isBuyer && !isAdmin) {
+        return res.status(403).json({ error: "Only the buyer can mark an order as completed" });
+      }
+      if (currentStatus !== "delivered") {
+        return res.status(400).json({
+          error: "Order must be in 'delivered' status to mark as completed",
+          currentStatus,
+        });
+      }
+      newStatus = "completed";
+    } else if (action === "cancel") {
+      if (!note?.trim()) {
+        return res.status(400).json({ error: "Reason is required for cancellation" });
+      }
+      if (isSupplier || isAdmin) {
+        if (!SUPPLIER_CANCEL_FROM.includes(currentStatus)) {
+          return res.status(400).json({
+            error: `Supplier cannot cancel an order in "${currentStatus}" status`,
+            currentStatus,
+          });
+        }
+      } else if (isBuyer) {
+        if (!BUYER_CANCEL_FROM.includes(currentStatus)) {
+          return res.status(400).json({
+            error: `Buyer can only cancel orders that are still pending`,
+            currentStatus,
+          });
+        }
+      }
+      newStatus = "cancelled";
+    }
+
+    if (!newStatus) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+
+    // Apply transition
+    await query(
+      "UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2",
+      [newStatus, order.id]
+    );
+
+    // Record in history
+    const role = isAdmin ? "admin" : isSupplier ? "supplier" : "buyer";
+    await query(
+      `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_user_id, changed_by_company_id, role, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [order.id, currentStatus, newStatus, req.userId, user.company_id, role, note || null]
+    );
+
+    // Log activity
+    await logActivity(
+      "order", order.id,
+      `order.status.${newStatus}`,
+      `Order ${order.order_number} moved from ${currentStatus} to ${newStatus}`,
+      { from: currentStatus, to: newStatus, role, note: note || null },
+      req.userId
+    );
+
+    // Fetch updated order
+    const updated = await query("SELECT * FROM orders WHERE id = $1", [order.id]);
+
+    res.json({ order: updated.rows[0], transition: { from: currentStatus, to: newStatus } });
+  } catch (err) {
+    console.error("Order lifecycle error:", err);
+    res.status(500).json({ error: "Failed to update order status" });
+  }
+});
+
+/* GET /orders/:id/history — status timeline */
+router.get("/:id/history", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const isAdmin = req.userRole === "admin" || req.userRole === "super_admin";
+
+    // Verify access
+    const orderResult = await query(
+      `SELECT o.id, o.user_id, sq.provider_company_id as supplier_company_id
+       FROM orders o
+       LEFT JOIN scout_quotes sq ON sq.order_id = o.id
+       WHERE o.id = $1`,
+      [req.params.id]
+    );
+    if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+    const order = orderResult.rows[0];
+
+    // Check if user is buyer, supplier, or admin
+    const userRow = await query("SELECT company_id FROM users WHERE id = $1", [req.userId]);
+    const userCompanyId = userRow.rows[0]?.company_id;
+    const isBuyer = order.user_id === req.userId;
+    const isSupplier = userCompanyId && order.supplier_company_id === userCompanyId;
+
+    if (!isBuyer && !isSupplier && !isAdmin) {
+      return res.status(403).json({ error: "Not authorized to view this order's history" });
+    }
+
+    const history = await query(
+      `SELECT h.*, u.first_name, u.last_name, c.name as company_name
+       FROM order_status_history h
+       LEFT JOIN users u ON u.id = h.changed_by_user_id
+       LEFT JOIN companies c ON c.id = h.changed_by_company_id
+       WHERE h.order_id = $1
+       ORDER BY h.created_at ASC`,
+      [req.params.id]
+    );
+
+    res.json({ history: history.rows });
+  } catch (err) {
+    console.error("Order history error:", err);
+    res.status(500).json({ error: "Failed to fetch order history" });
+  }
+});
+
 /* ── Admin: update order status ── */
 
 const validServiceStatuses = ["requested", "scheduled", "assigned", "in_progress", "completed", "cancelled"] as const;

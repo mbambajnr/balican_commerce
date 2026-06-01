@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import toast from "react-hot-toast";
-import { ArrowLeft, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowLeft, MagnifyingGlass, Package, Wrench } from "@phosphor-icons/react";
 
 export default function NewScoutRequestPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  const [categories, setCategories] = useState<any[]>([]);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -22,8 +23,26 @@ export default function NewScoutRequestPage() {
     budgetMin: "",
     budgetMax: "",
     notes: "",
+    categoryId: "",
+    requestType: "product" as "product" | "service",
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Flatten category tree into a single list for the select
+  function flattenCategories(nodes: any[], depth = 0): { id: string; name: string; depth: number }[] {
+    const out: { id: string; name: string; depth: number }[] = [];
+    for (const n of nodes) {
+      out.push({ id: n.id, name: n.name, depth });
+      if (n.children?.length) out.push(...flattenCategories(n.children, depth + 1));
+    }
+    return out;
+  }
+
+  useEffect(() => {
+    api.getCategories()
+      .then((r) => setCategories(flattenCategories(r.categories)))
+      .catch(() => {});
+  }, []);
 
   if (loading) return null;
 
@@ -55,6 +74,8 @@ export default function NewScoutRequestPage() {
         budgetMin: form.budgetMin ? parseFloat(form.budgetMin) : undefined,
         budgetMax: form.budgetMax ? parseFloat(form.budgetMax) : undefined,
         notes: form.notes.trim() || undefined,
+        categoryId: form.categoryId || undefined,
+        requestType: form.requestType,
       });
       toast.success("Scout request created");
       router.push(`/scout/${res.request.id}`);
@@ -79,6 +100,55 @@ export default function NewScoutRequestPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+
+        {/* Request type toggle */}
+        <div>
+          <label className="input-label">Request Type</label>
+          <div className="mt-2 flex gap-3">
+            <button
+              type="button"
+              onClick={() => set("requestType", "product")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
+                form.requestType === "product"
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border bg-white text-muted hover:border-accent/40"
+              }`}
+            >
+              <Package size={18} />
+              Product / Goods
+            </button>
+            <button
+              type="button"
+              onClick={() => set("requestType", "service")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
+                form.requestType === "service"
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border bg-white text-muted hover:border-accent/40"
+              }`}
+            >
+              <Wrench size={18} />
+              Service / Works
+            </button>
+          </div>
+        </div>
+
+        {/* Category */}
+        <div>
+          <label className="input-label">Category <span className="text-soft text-xs font-normal">(optional)</span></label>
+          <select
+            className="input mt-1"
+            value={form.categoryId}
+            onChange={(e) => set("categoryId", e.target.value)}
+          >
+            <option value="">Select a category…</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {"  ".repeat(cat.depth)}{cat.depth > 0 ? "↳ " : ""}{cat.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Title */}
         <div>
           <label className="input-label">
@@ -86,7 +156,7 @@ export default function NewScoutRequestPage() {
           </label>
           <input
             className="input mt-1"
-            placeholder="e.g. 200m XLPE Power Cable, 11kV"
+            placeholder={form.requestType === "service" ? "e.g. Electrical installation for 3-storey building" : "e.g. 200m XLPE Power Cable, 11kV"}
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
             required
@@ -98,7 +168,9 @@ export default function NewScoutRequestPage() {
           <label className="input-label">Description / Specifications</label>
           <textarea
             className="input mt-1 min-h-[100px] resize-y"
-            placeholder="Provide detailed specs, standards, materials, tolerances…"
+            placeholder={form.requestType === "service"
+              ? "Describe scope of work, standards, timeline, certification requirements…"
+              : "Provide detailed specs, standards, materials, tolerances…"}
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
           />
@@ -108,7 +180,7 @@ export default function NewScoutRequestPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="input-label">
-              Quantity <span className="text-red-500">*</span>
+              {form.requestType === "service" ? "Quantity / Scope" : "Quantity"} <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
@@ -125,7 +197,7 @@ export default function NewScoutRequestPage() {
             <label className="input-label">Unit</label>
             <input
               className="input mt-1"
-              placeholder="metres, kg, pieces…"
+              placeholder={form.requestType === "service" ? "hours, days, lots…" : "metres, kg, pieces…"}
               value={form.unit}
               onChange={(e) => set("unit", e.target.value)}
             />
@@ -135,7 +207,7 @@ export default function NewScoutRequestPage() {
         {/* Delivery */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="input-label">Delivery Location</label>
+            <label className="input-label">{form.requestType === "service" ? "Site / Location" : "Delivery Location"}</label>
             <input
               className="input mt-1"
               placeholder="e.g. Accra, Greater Accra"
@@ -144,7 +216,9 @@ export default function NewScoutRequestPage() {
             />
           </div>
           <div>
-            <label className="input-label">Desired Delivery Date</label>
+            <label className="input-label">
+              {form.requestType === "service" ? "Required By Date" : "Desired Delivery Date"}
+            </label>
             <input
               type="date"
               className="input mt-1"

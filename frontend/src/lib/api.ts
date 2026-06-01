@@ -100,6 +100,10 @@ export const api = {
     }),
   updateOrderStatus: (id: string, status: string) =>
     request<{ order: any }>(`/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  orderLifecycle: (id: string, data: { action: "advance" | "complete" | "cancel"; note?: string }) =>
+    request<{ order: any; transition: { from: string; to: string } }>(`/orders/${id}/lifecycle`, { method: "PATCH", body: JSON.stringify(data) }),
+  getOrderHistory: (id: string) =>
+    request<{ history: any[] }>(`/orders/${id}/history`),
   getOrderPayments: (id: string) => request<{ payments: any[] }>(`/orders/${id}/payments`),
   recordPayment: (id: string, data: { amount: number; method: string; reference?: string; notes?: string }) =>
     request<{ payment: any }>(`/orders/${id}/payments`, { method: "POST", body: JSON.stringify(data) }),
@@ -680,6 +684,7 @@ export const api = {
     title: string; description?: string; quantity: number; unit?: string;
     deliveryLocation?: string; desiredDeliveryDate?: string;
     budgetMin?: number; budgetMax?: number; notes?: string;
+    categoryId?: string; requestType?: "product" | "service";
   }) => request<{ request: any }>("/scout/requests", { method: "POST", body: JSON.stringify(data) }),
 
   getScoutRequests: (params?: { status?: string; page?: string; limit?: string }) => {
@@ -696,7 +701,11 @@ export const api = {
   acceptScoutQuote: (requestId: string, quoteId: string) =>
     request<{ success: boolean; order: any }>(`/scout/requests/${requestId}/accept-quote/${quoteId}`, { method: "POST" }),
 
-  getScoutAvailable: (params?: { search?: string; page?: string; limit?: string }) => {
+  getScoutAvailable: (params?: {
+    search?: string; category?: string; location?: string;
+    requestType?: string; deliveryDateBefore?: string;
+    page?: string; limit?: string;
+  }) => {
     const qs = new URLSearchParams((params ?? {}) as any).toString();
     return request<{ requests: any[]; pagination: any }>(`/scout/available${qs ? `?${qs}` : ""}`);
   },

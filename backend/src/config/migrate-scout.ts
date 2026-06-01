@@ -58,9 +58,19 @@ export async function migrateScout() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS scout_request_id UUID REFERENCES scout_requests(id) ON DELETE SET NULL;
   `);
 
+  // Add category_id and request_type columns (idempotent)
+  await query(`
+    DO $$ BEGIN
+      CREATE TYPE scout_request_type AS ENUM ('product', 'service');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `);
+  await query(`ALTER TABLE scout_requests ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES categories(id) ON DELETE SET NULL;`);
+  await query(`ALTER TABLE scout_requests ADD COLUMN IF NOT EXISTS request_type scout_request_type NOT NULL DEFAULT 'product';`);
+
   // Indexes
   await query(`CREATE INDEX IF NOT EXISTS idx_scout_requests_company    ON scout_requests(company_id);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_scout_requests_status     ON scout_requests(status);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_scout_requests_category   ON scout_requests(category_id);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_scout_quotes_request      ON scout_quotes(request_id);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_scout_quotes_provider     ON scout_quotes(provider_company_id);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_orders_scout_request      ON orders(scout_request_id);`);

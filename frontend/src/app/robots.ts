@@ -9,6 +9,7 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         disallow: ["/admin/", "/api/", "/auth/", "/account/"],
+        crawlDelay: 5,
       },
       {
         userAgent: "GPTBot",
@@ -37,6 +38,21 @@ export default function robots(): MetadataRoute.Robots {
       },
       {
         userAgent: "Google-Extended",
+        allow: "/",
+        disallow: ["/admin/", "/api/", "/auth/", "/account/"],
+      },
+      {
+        userAgent: "Googlebot",
+        allow: "/",
+        disallow: ["/admin/", "/api/", "/auth/", "/account/"],
+      },
+      {
+        userAgent: "Bingbot",
+        allow: "/",
+        disallow: ["/admin/", "/api/", "/auth/", "/account/"],
+      },
+      {
+        userAgent: "cohere-ai",
         allow: "/",
         disallow: ["/admin/", "/api/", "/auth/", "/account/"],
       },

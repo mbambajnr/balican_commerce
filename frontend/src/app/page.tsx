@@ -26,6 +26,20 @@ export const metadata: Metadata = {
   },
 };
 
+const faqSchema = {
+  "@type": "FAQPage",
+  "@id": `${siteUrl}#faq`,
+  mainEntity: [
+    { "@type": "Question", name: "What is Bali-Can?", acceptedAnswer: { "@type": "Answer", text: "Bali-Can Limited is Ghana's B2B procurement platform connecting industrial buyers with vetted suppliers. We serve the HVAC, electrical, solar, and appliance sectors with a quote-first sourcing model." } },
+    { "@type": "Question", name: "How does B2B procurement work on Bali-Can?", acceptedAnswer: { "@type": "Answer", text: "Buyers submit RFQs describing their requirements. Vetted suppliers respond with competitive quotes. Buyers compare offers by price, credit tier, and supplier rating, then accept the best fit and convert to an order." } },
+    { "@type": "Question", name: "Why don't I see prices on products?", acceptedAnswer: { "@type": "Answer", text: "Bali-Can operates a quote-first model. Product prices are not publicly listed. Registered B2B buyers receive custom pricing based on their company or group agreements after submitting an RFQ." } },
+    { "@type": "Question", name: "How do I submit a request for quote?", acceptedAnswer: { "@type": "Answer", text: "Register your company, then submit a procurement request specifying products, quantities, and delivery timeline. You can invite specific suppliers or open the request to all vetted providers." } },
+    { "@type": "Question", name: "Are suppliers on Bali-Can vetted?", acceptedAnswer: { "@type": "Answer", text: "Yes. Every supplier is assessed for reliability with a tiered credit system: Premium, Standard, and Basic. Buyers can see supplier trust scores, response rates, and credit tiers before selecting a provider." } },
+    { "@type": "Question", name: "Does Bali-Can offer company credit?", acceptedAnswer: { "@type": "Answer", text: "Yes. Registered companies can apply for credit. Once approved, buyers can place orders on payment terms without upfront payment. Credit limits are set per company based on vetting." } },
+    { "@type": "Question", name: "What industries does Bali-Can serve?", acceptedAnswer: { "@type": "Answer", text: "We serve industrial procurement across HVAC, electrical, solar energy, appliances, and related B2B sectors in Ghana. Our platform covers all 16 regions." } },
+  ],
+};
+
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
@@ -94,6 +108,7 @@ const jsonLd = {
         "query-input": "required name=search_term_string",
       },
     },
+    faqSchema,
   ],
 };
 

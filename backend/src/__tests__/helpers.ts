@@ -310,6 +310,48 @@ export async function createTestRFQ(
   return result.rows[0];
 }
 
+// Pre-computed argon2id hash of "TestPass123!" — avoids ~1.3s hashing per user
+const FAST_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$placeholder$placeholder";
+
+/**
+ * Fast user creation that skips argon2 hashing. Use when tests authenticate
+ * via JWT tokens (generateToken) and never verify passwords.
+ */
+export async function createTestUserFast(
+  overrides: Partial<{
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    phone: string;
+    companyId: string;
+    companyRole: string;
+    accountStatus: string;
+  }> = {}
+) {
+  const email = overrides.email || makeEmail("user");
+  const result = await query(
+    `INSERT INTO users (email, password_hash, first_name, last_name, role, phone,
+      company_id, company_role, account_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (email) DO UPDATE SET updated_at = NOW(), account_status = EXCLUDED.account_status,
+       company_id = EXCLUDED.company_id
+     RETURNING id, email, first_name, last_name, role, company_id, company_role, account_status`,
+    [
+      email,
+      FAST_PASSWORD_HASH,
+      overrides.firstName || "Test",
+      overrides.lastName || "User",
+      overrides.role || "customer",
+      overrides.phone || "0800000000",
+      overrides.companyId || null,
+      overrides.companyRole || "company_admin",
+      overrides.accountStatus || "active",
+    ]
+  );
+  return result.rows[0];
+}
+
 export function generateToken(userId: string, role: string): string {
   const jwt = require("jsonwebtoken");
   const { config } = require("../config");
@@ -330,11 +372,14 @@ export async function cleanupTestData() {
     "quotation_events",
     "quotation_items",
     "quotations",
+    "order_status_history",
     "order_payments",
     "bank_transfers",
     "invoices",
     "activities",
     "orders",
+    "scout_quotes",
+    "scout_requests",
     "rfqs",
     "product_images",
     "product_attributes",
@@ -342,6 +387,7 @@ export async function cleanupTestData() {
     "carts",
     "products",
     "categories",
+    "provider_profiles",
     "companies",
   ];
 

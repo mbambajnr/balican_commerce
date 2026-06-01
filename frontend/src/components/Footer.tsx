@@ -66,9 +66,11 @@ export default function Footer() {
             <h3 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">Policies</h3>
             <ul className="mt-4 space-y-3">
               {[
+                { label: "Terms of Service", href: "/terms" },
+                { label: "Privacy Policy", href: "/privacy" },
                 { label: "Shipping Policy", href: "/shipping-policy" },
                 { label: "Returns & Refunds", href: "/returns-policy" },
-                { label: "Privacy Policy", href: "/privacy" },
+                { label: "Legal Notice", href: "/legal" },
                 { label: "RFQ Guide", href: "/rfq-guide" },
               ].map((link) => (
                 <li key={link.href}>
@@ -94,7 +96,7 @@ export default function Footer() {
       <div className="border-t border-white/5">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <p className="text-xs text-zinc-600">&copy; {new Date().getFullYear()} Bali-Can Limited. All rights reserved.</p>
+            <p className="text-xs text-zinc-600">&copy; {new Date().getFullYear()} Bali-Can Limited. All rights reserved. <span className="hidden sm:inline">Last updated June 2026.</span></p>
             <div className="flex items-center gap-4 text-xs text-zinc-600">
               <span className="flex items-center gap-1.5">
                 <ShieldCheck size={12} weight="duotone" />

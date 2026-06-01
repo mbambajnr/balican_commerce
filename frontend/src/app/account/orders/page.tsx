@@ -47,10 +47,10 @@ export default function OrdersPage() {
               <tbody>
                 {orders.map((o: any) => (
                   <tr key={o.id} className="border-b border-border/50 text-sm hover:bg-zinc-50 transition-colors">
-                    <td className="px-6 py-4"><Link href={`/orders/${o.id}/confirm`} className="font-medium text-accent">{o.order_number}</Link></td>
-                    <td className="px-6 py-4 text-muted">{(o.items || []).length} item(s)</td>
+                    <td className="px-6 py-4"><Link href={`/account/orders/${o.id}/lifecycle`} className="font-medium text-accent">{o.order_number}</Link></td>
+                    <td className="px-6 py-4 text-muted">{(typeof o.items === "string" ? JSON.parse(o.items) : o.items || []).length} item(s)</td>
                     <td className="px-6 py-4 font-medium">GH₵{Number(o.total).toLocaleString()}</td>
-                    <td className="px-6 py-4"><span className={`badge ${o.status === "paid" ? "badge-green" : o.status === "pending" ? "badge-yellow" : "badge-gray"}`}>{o.status}</span></td>
+                    <td className="px-6 py-4"><span className={`badge ${o.status === "paid" || o.status === "completed" ? "badge-green" : o.status === "pending" ? "badge-yellow" : o.status === "cancelled" ? "badge-gray" : "badge-blue"}`}>{o.status}</span></td>
                     <td className="px-6 py-4 text-muted">{new Date(o.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}

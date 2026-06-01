@@ -2,7 +2,7 @@ import request from "supertest";
 import app from "../app";
 import { query } from "../config/db";
 import {
-  createTestUser, createTestCompany, cleanupTestData,
+  createTestCompany, cleanupTestData, createTestUserFast,
   generateToken, makeEmail, makeUnique,
 } from "./helpers";
 
@@ -10,7 +10,7 @@ import {
 
 const makeCustomer = async (label: string) => {
   const company = await createTestCompany(makeUnique(label));
-  const user = await createTestUser({
+  const user = await createTestUserFast({
     email: makeEmail(makeUnique(label)),
     companyId: company.id,
     role: "customer",
@@ -23,26 +23,29 @@ const makeCustomer = async (label: string) => {
 
 const makeProvider = async (label: string) => {
   const company = await createTestCompany(makeUnique(label));
-  await query(
-    `UPDATE companies
-     SET is_provider = true, company_type = 'supplier',
-         verification_status = 'approved', status = 'active'
-     WHERE id = $1`,
-    [company.id]
-  );
-  await query(
-    `INSERT INTO provider_profiles (company_id, display_name, provider_type)
-     VALUES ($1, $2, 'supplier')
-     ON CONFLICT (company_id) DO UPDATE SET display_name = $2`,
-    [company.id, `${label} Display`]
-  );
-  const user = await createTestUser({
+  const user = await createTestUserFast({
     email: makeEmail(makeUnique(label)),
     companyId: company.id,
     role: "customer",
     companyRole: "company_admin",
     accountStatus: "active",
   });
+  // Run provider setup in parallel with nothing else needed
+  await Promise.all([
+    query(
+      `UPDATE companies
+       SET is_provider = true, company_type = 'supplier',
+           verification_status = 'approved', status = 'active'
+       WHERE id = $1`,
+      [company.id]
+    ),
+    query(
+      `INSERT INTO provider_profiles (company_id, display_name, provider_type)
+       VALUES ($1, $2, 'supplier')
+       ON CONFLICT (company_id) DO UPDATE SET display_name = $2`,
+      [company.id, `${label} Display`]
+    ),
+  ]);
   const token = generateToken(user.id, "customer");
   return { company, user, token };
 };
@@ -67,7 +70,7 @@ afterAll(cleanupTestData);
 describe("POST /api/scout/requests", () => {
   let customer: Awaited<ReturnType<typeof makeCustomer>>;
 
-  beforeAll(async () => { customer = await makeCustomer("scout-create"); });
+  beforeAll(async () => { customer = await makeCustomer("scout-create"); }, 60_000);
 
   test("customer creates a Scout request — 201", async () => {
     const res = await request(app)
@@ -115,15 +118,17 @@ describe("GET /api/scout/requests", () => {
   let requestId: string;
 
   beforeAll(async () => {
-    customer = await makeCustomer("scout-list");
-    otherCustomer = await makeCustomer("scout-list-other");
+    [customer, otherCustomer] = await Promise.all([
+      makeCustomer("scout-list"),
+      makeCustomer("scout-list-other"),
+    ]);
 
     const res = await request(app)
       .post("/api/scout/requests")
       .set("Authorization", `Bearer ${customer.token}`)
       .send({ ...BASE_REQUEST, title: "List Test Request" });
     requestId = res.body.request.id;
-  });
+  }, 60_000);
 
   test("customer sees only their own requests", async () => {
     const res = await request(app)
@@ -179,7 +184,7 @@ describe("PATCH /api/scout/requests/:id/cancel", () => {
       .set("Authorization", `Bearer ${customer.token}`)
       .send({ ...BASE_REQUEST, title: "Cancel Test" });
     requestId = res.body.request.id;
-  });
+  }, 60_000);
 
   test("customer can cancel their own open request", async () => {
     await request(app)
@@ -208,14 +213,16 @@ describe("GET /api/scout/available", () => {
   let openRequestId: string;
 
   beforeAll(async () => {
-    provider = await makeProvider("scout-avail-prov");
-    customer = await makeCustomer("scout-avail-cust");
+    [provider, customer] = await Promise.all([
+      makeProvider("scout-avail-prov"),
+      makeCustomer("scout-avail-cust"),
+    ]) as [typeof provider, typeof customer];
     const res = await request(app)
       .post("/api/scout/requests")
       .set("Authorization", `Bearer ${customer.token}`)
       .send({ ...BASE_REQUEST, title: "Available Test Open" });
     openRequestId = res.body.request.id;
-  });
+  }, 60_000);
 
   test("verified provider can list available open requests", async () => {
     const res = await request(app)
@@ -262,15 +269,17 @@ describe("POST /api/scout/requests/:id/quote", () => {
   let requestId: string;
 
   beforeAll(async () => {
-    provider = await makeProvider("scout-quote-prov1");
-    provider2 = await makeProvider("scout-quote-prov2");
-    customer = await makeCustomer("scout-quote-cust");
+    [provider, provider2, customer] = await Promise.all([
+      makeProvider("scout-quote-prov1"),
+      makeProvider("scout-quote-prov2"),
+      makeCustomer("scout-quote-cust"),
+    ]) as [typeof provider, typeof provider2, typeof customer];
     const res = await request(app)
       .post("/api/scout/requests")
       .set("Authorization", `Bearer ${customer.token}`)
       .send({ ...BASE_REQUEST, title: "Quote Submit Test" });
     requestId = res.body.request.id;
-  });
+  }, 60_000);
 
   test("provider submits a quote — 201", async () => {
     const res = await request(app)
@@ -360,9 +369,11 @@ describe("POST /api/scout/requests/:id/accept-quote/:quoteId", () => {
   let quote2Id: string;
 
   beforeAll(async () => {
-    provider = await makeProvider("scout-accept-prov1");
-    provider2 = await makeProvider("scout-accept-prov2");
-    customer = await makeCustomer("scout-accept-cust");
+    [provider, provider2, customer] = await Promise.all([
+      makeProvider("scout-accept-prov1"),
+      makeProvider("scout-accept-prov2"),
+      makeCustomer("scout-accept-cust"),
+    ]) as [typeof provider, typeof provider2, typeof customer];
 
     const reqRes = await request(app)
       .post("/api/scout/requests")
@@ -370,18 +381,20 @@ describe("POST /api/scout/requests/:id/accept-quote/:quoteId", () => {
       .send({ ...BASE_REQUEST, title: "Accept Test", quantity: 10 });
     requestId = reqRes.body.request.id;
 
-    const q1 = await request(app)
-      .post(`/api/scout/requests/${requestId}/quote`)
-      .set("Authorization", `Bearer ${provider.token}`)
-      .send({ quotedPrice: 100, paymentTerms: "Net 30" });
+    // Submit quotes in parallel (independent providers)
+    const [q1, q2] = await Promise.all([
+      request(app)
+        .post(`/api/scout/requests/${requestId}/quote`)
+        .set("Authorization", `Bearer ${provider.token}`)
+        .send({ quotedPrice: 100, paymentTerms: "Net 30" }),
+      request(app)
+        .post(`/api/scout/requests/${requestId}/quote`)
+        .set("Authorization", `Bearer ${provider2.token}`)
+        .send({ quotedPrice: 90, paymentTerms: "Upfront" }),
+    ]);
     quote1Id = q1.body.quote.id;
-
-    const q2 = await request(app)
-      .post(`/api/scout/requests/${requestId}/quote`)
-      .set("Authorization", `Bearer ${provider2.token}`)
-      .send({ quotedPrice: 90, paymentTerms: "Upfront" });
     quote2Id = q2.body.quote.id;
-  });
+  }, 60_000);
 
   test("customer can view both quotes side-by-side", async () => {
     const res = await request(app)

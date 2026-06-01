@@ -113,6 +113,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     };
   }
 
+  const productFaqSchema = {
+    "@type": "FAQPage",
+    "@id": `${productUrl}#faq`,
+    mainEntity: [
+      { "@type": "Question", name: `What is the price of ${product.name}?`, acceptedAnswer: { "@type": "Answer", text: "Bali-Can operates a quote-first model. Product prices are not publicly listed. Register your company and submit an RFQ to receive a competitive quote from vetted suppliers." } },
+      { "@type": "Question", name: `How can I buy ${product.name}?`, acceptedAnswer: { "@type": "Answer", text: `Submit a procurement request on Bali-Can for ${product.name}. Specify quantities and delivery requirements, and vetted suppliers will respond with quotes. Compare and select the best offer.` } },
+      { "@type": "Question", name: `Is ${product.name} in stock?`, acceptedAnswer: { "@type": "Answer", text: product.stock_status === "in_stock" ? `${product.name} is currently in stock. Submit an RFQ to check current availability and pricing from suppliers.` : `${product.name} is currently out of stock. Submit an RFQ and suppliers will advise on restock timelines.` } },
+      { "@type": "Question", name: `Can I get credit to purchase ${product.name}?`, acceptedAnswer: { "@type": "Answer", text: "Registered B2B companies on Bali-Can can apply for company credit. Once approved, you can purchase on payment terms without upfront payment." } },
+    ],
+  };
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
@@ -121,6 +132,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         "@type": "BreadcrumbList",
         itemListElement: breadcrumbItems,
       },
+      productFaqSchema,
     ],
   };
 

@@ -14,7 +14,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/shipping-policy`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.4 },
     { url: `${BASE}/returns-policy`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.4 },
     { url: `${BASE}/contact`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.5 },
+    { url: `${BASE}/terms`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.4 },
     { url: `${BASE}/privacy`, lastModified: new Date(), changeFrequency: "yearly" as const, priority: 0.3 },
+    { url: `${BASE}/legal`, lastModified: new Date(), changeFrequency: "yearly" as const, priority: 0.3 },
+    { url: `${BASE}/llms.txt`, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 0.3 },
+    { url: `${BASE}/pricing.md`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.3 },
     { url: `${BASE}/auth/login`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.3 },
     { url: `${BASE}/auth/register`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.5 },
   ];

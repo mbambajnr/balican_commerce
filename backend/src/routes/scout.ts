@@ -57,6 +57,8 @@ const createRequestSchema = z.object({
   budgetMin: z.number().min(0).optional(),
   budgetMax: z.number().min(0).optional(),
   notes: z.string().max(5000).optional(),
+  categoryId: z.string().uuid().optional(),
+  requestType: z.enum(["product", "service"]).optional(),
 });
 
 const submitQuoteSchema = z.object({
@@ -84,19 +86,21 @@ router.post(
         title, description, quantity, unit,
         deliveryLocation, desiredDeliveryDate,
         budgetMin, budgetMax, notes,
+        categoryId, requestType,
       } = req.body;
 
       const result = await query(
         `INSERT INTO scout_requests
            (company_id, created_by, title, description, quantity, unit,
-            delivery_location, desired_delivery_date, budget_min, budget_max, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11)
+            delivery_location, desired_delivery_date, budget_min, budget_max, notes,
+            category_id, request_type)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12,$13)
          RETURNING *`,
         [
           companyId, req.userId, title, description || null,
           quantity, unit || null, deliveryLocation || null,
           desiredDeliveryDate || null, budgetMin ?? null, budgetMax ?? null,
-          notes || null,
+          notes || null, categoryId || null, requestType || "product",
         ]
       );
 
@@ -129,8 +133,10 @@ router.get("/scout/requests", authenticate, async (req: AuthRequest, res: Respon
     const [listResult, countResult] = await Promise.all([
       query(
         `SELECT sr.*,
+                cat.name as category_name,
                 (SELECT COUNT(*) FROM scout_quotes sq WHERE sq.request_id = sr.id) as quote_count
          FROM scout_requests sr
+         LEFT JOIN categories cat ON cat.id = sr.category_id
          ${where}
          ORDER BY sr.created_at DESC
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -316,7 +322,10 @@ router.get("/scout/available", authenticate, async (req: AuthRequest, res: Respo
     const providerCompanyId = await resolveProviderCompany(req, res);
     if (!providerCompanyId) return;
 
-    const { search, page = "1", limit = "20" } = req.query;
+    const {
+      search, category, location, requestType,
+      deliveryDateBefore, page = "1", limit = "20",
+    } = req.query;
     const pageNum = Math.max(1, parseInt(page as string));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
     const offset = (pageNum - 1) * limitNum;
@@ -328,23 +337,50 @@ router.get("/scout/available", authenticate, async (req: AuthRequest, res: Respo
       params.push(`%${search}%`);
       conditions.push(`(sr.title ILIKE $${params.length} OR sr.description ILIKE $${params.length})`);
     }
+    if (category) {
+      params.push(category);
+      conditions.push(`sr.category_id = $${params.length}`);
+    }
+    if (location) {
+      params.push(`%${location}%`);
+      conditions.push(`sr.delivery_location ILIKE $${params.length}`);
+    }
+    if (requestType) {
+      params.push(requestType);
+      conditions.push(`sr.request_type = $${params.length}`);
+    }
+    if (deliveryDateBefore) {
+      params.push(deliveryDateBefore);
+      conditions.push(`sr.desired_delivery_date <= $${params.length}::date`);
+    }
 
     const where = `WHERE ${conditions.join(" AND ")}`;
 
+    // providerCompanyId is always the first extra param after the filter params
     const [listResult, countResult] = await Promise.all([
       query(
         `SELECT sr.*,
+                cat.name as category_name,
+                bc.name as buyer_company_name,
+                bc.city as buyer_city,
                 (SELECT COUNT(*) FROM scout_quotes sq WHERE sq.request_id = sr.id) as quote_count,
                 (SELECT sq2.status FROM scout_quotes sq2
                  WHERE sq2.request_id = sr.id AND sq2.provider_company_id = $${params.length + 1}
                  LIMIT 1) as my_quote_status
          FROM scout_requests sr
+         LEFT JOIN categories cat ON cat.id = sr.category_id
+         JOIN companies bc ON bc.id = sr.company_id
          ${where}
          ORDER BY sr.created_at DESC
          LIMIT $${params.length + 2} OFFSET $${params.length + 3}`,
         [...params, providerCompanyId, limitNum, offset]
       ),
-      query(`SELECT COUNT(*) FROM scout_requests sr ${where}`, params),
+      query(
+        `SELECT COUNT(*) FROM scout_requests sr
+         LEFT JOIN categories cat ON cat.id = sr.category_id
+         ${where}`,
+        params
+      ),
     ]);
 
     const total = parseInt(countResult.rows[0].count);
