@@ -2,7 +2,7 @@ import request from "supertest";
 import app from "../app";
 import { query, transaction } from "../config/db";
 import {
-  createTestUser, createTestCategory, createTestProduct,
+  createTestUser, createTestCompany, createTestCategory, createTestProduct,
   createTestQuotation, createTestQuotationItem,
   createTestOrder, createTestInvoice, createTestBankTransfer,
   generateToken, cleanupTestData,
@@ -14,6 +14,13 @@ const state: Record<string, any> = {};
 beforeAll(async () => {
   // Ensure clean state from any previously interrupted runs
   await cleanupTestData();
+
+  // Create test companies
+  state.customerCompany = await createTestCompany("Payments Customer Co");
+  state.creditCompany = await createTestCompany("Payments Credit Co");
+  state.creditUnlimitedCompany = await createTestCompany("Payments Credit Unlimited Co");
+  state.otherCompany = await createTestCompany("Payments Other Co");
+  state.noCreditCompany = await createTestCompany("Payments No Credit Co");
 
   // Create test users
   state.adminUser = await createTestUser({
@@ -49,6 +56,7 @@ beforeAll(async () => {
     firstName: "QA",
     lastName: "Customer",
     role: "customer",
+    companyId: state.customerCompany.id,
   });
 
   state.creditCustomer = await createTestUser({
@@ -60,6 +68,7 @@ beforeAll(async () => {
     creditLimit: 500000,
     paymentTermsDays: 30,
     companyName: "Credit Corp Ltd",
+    companyId: state.creditCompany.id,
   });
 
   state.creditCustomerNoLimit = await createTestUser({
@@ -71,6 +80,7 @@ beforeAll(async () => {
     creditLimit: 0, // 0 = unlimited
     paymentTermsDays: 30,
     companyName: "Unlimited Corp Ltd",
+    companyId: state.creditUnlimitedCompany.id,
   });
 
   state.anotherCustomer = await createTestUser({
@@ -78,6 +88,7 @@ beforeAll(async () => {
     firstName: "Other",
     lastName: "Customer",
     role: "customer",
+    companyId: state.otherCompany.id,
   });
 
   state.noCreditCustomer = await createTestUser({
@@ -86,6 +97,7 @@ beforeAll(async () => {
     lastName: "Credit",
     role: "customer",
     isCreditApproved: false,
+    companyId: state.noCreditCompany.id,
   });
 
   // Create category and products

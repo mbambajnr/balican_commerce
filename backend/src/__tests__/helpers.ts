@@ -388,6 +388,11 @@ export async function cleanupTestData() {
     "products",
     "categories",
     "provider_profiles",
+    "subscription_events",
+    "company_subscriptions",
+    "verification_documents",
+    "audit_logs",
+    "activity_logs",
     "companies",
   ];
 

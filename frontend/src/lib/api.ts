@@ -40,7 +40,7 @@ async function request<T>(
 
 export const api = {
   // Auth
-  register: (data: { email: string; password: string; firstName: string; lastName: string; phone?: string; companyName?: string; businessType?: string; industry?: string; address?: string; city?: string; state?: string; taxId?: string; businessRegistrationNumber?: string; contactPersonName?: string; contactPersonEmail?: string; contactPersonPhone?: string; requestedPaymentTerms?: string }) =>
+  register: (data: { email: string; password: string; firstName: string; lastName: string; phone?: string; companyName?: string; companyType?: string; businessType?: string; industry?: string; address?: string; city?: string; state?: string; taxId?: string; businessRegistrationNumber?: string; contactPersonName?: string; contactPersonEmail?: string; contactPersonPhone?: string; requestedPaymentTerms?: string }) =>
     request<{ user: any; token: string; company: any }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   login: (data: { email: string; password: string }) =>
     request<{ user: any; token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
@@ -244,7 +244,7 @@ export const api = {
   getSearchVolume: () => request<{ volume: any[] }>("/analytics/search-volume"),
 
   // Companies (B2B)
-  getCompanies: (params?: { search?: string; status?: string; page?: string; limit?: string }) => {
+  getCompanies: (params?: { search?: string; status?: string; companyType?: string; page?: string; limit?: string }) => {
     const qs = new URLSearchParams(params as any).toString();
     return request<{ companies: any[]; pagination: any }>(`/admin/companies${qs ? `?${qs}` : ""}`);
   },
@@ -587,6 +587,17 @@ export const api = {
   getProviderProfile: () => request<{ company: any; profile: any }>("/provider/profile"),
   updateProviderProfile: (data: any) => request<{ profile: any }>("/provider/profile", { method: "PUT", body: JSON.stringify(data) }),
 
+  // Provider Opportunities (procurement requests)
+  getProviderOpportunities: (params?: { category?: string; requestType?: string; location?: string; deadline?: string; search?: string; status?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return request<{ opportunities: any[]; pagination: any }>(`/provider/opportunities${qs ? `?${qs}` : ""}`);
+  },
+  getProviderOpportunity: (id: string) => request<{ opportunity: any }>(`/provider/opportunities/${id}`),
+  submitProviderProposal: (id: string, data: { amount?: number; deliveryDate?: string; creditTerms?: string; availabilityStatus?: string; proposalText: string }) =>
+    request<{ proposal: any }>(`/provider/opportunities/${id}/proposals`, { method: "POST", body: JSON.stringify(data) }),
+  getProviderMyProposal: (id: string) => request<{ proposal: any }>(`/provider/opportunities/${id}/my-proposal`),
+  getScoutRequestProposals: (requestId: string) => request<{ request: any; proposals: any[] }>(`/scout/requests/${requestId}/proposals`),
+
   // Provider Dashboard
   getProviderDashboard: () => request<{ stats: any; recentProducts: any[]; recentServices: any[] }>("/provider/dashboard"),
 
@@ -612,6 +623,7 @@ export const api = {
     const qs = new URLSearchParams(params as any).toString();
     return request<{ services: any[]; pagination: any }>(`/provider/services${qs ? `?${qs}` : ""}`);
   },
+  getProviderService: (id: string) => request<{ service: any }>(`/provider/services/${id}`),
   createProviderService: (data: any) => request<{ service: any }>("/provider/services", { method: "POST", body: JSON.stringify(data) }),
   updateProviderService: (id: string, data: any) => request<{ service: any }>(`/provider/services/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   toggleProviderService: (id: string) => request<{ service: any }>(`/provider/services/${id}/toggle`, { method: "PATCH" }),
@@ -722,6 +734,179 @@ export const api = {
   submitScoutQuote: (requestId: string, data: {
     quotedPrice: number; deliveryDate?: string; paymentTerms?: string; notes?: string;
   }) => request<{ quote: any }>(`/scout/requests/${requestId}/quote`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Agreements
+  acceptProposal: (quoteId: string, data?: { notes?: string }) =>
+    request<{ agreement: any }>(`/scout/proposals/${quoteId}/accept`, { method: "POST", body: data ? JSON.stringify(data) : undefined }),
+
+  getAgreements: (params?: { status?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ agreements: any[]; pagination: any }>(`/agreements${qs ? `?${qs}` : ""}`);
+  },
+
+  getAgreement: (id: string) =>
+    request<{ agreement: any }>(`/agreements/${id}`),
+
+  updateAgreementStatus: (id: string, data: { status: string; reason?: string }) =>
+    request<{ success: boolean }>(`/agreements/${id}/status`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  convertAgreementToOrder: (id: string) =>
+    request<{ success: boolean; order: any }>(`/agreements/${id}/convert-to-order`, { method: "POST" }),
+
+  // Super Admin — Admin User Management
+  getAdminUsers: () =>
+    request<{ admins: any[] }>("/admin/admins"),
+
+  createAdminUser: (data: { email: string; password: string; firstName: string; lastName: string; phone?: string }) =>
+    request<{ admin: any }>("/admin/admins", { method: "POST", body: JSON.stringify(data) }),
+
+  disableAdminUser: (id: string) =>
+    request<{ success: boolean }>(`/admin/admins/${id}/disable`, { method: "PATCH" }),
+
+  enableAdminUser: (id: string) =>
+    request<{ success: boolean }>(`/admin/admins/${id}/enable`, { method: "PATCH" }),
+
+  // Provider Verification
+  getVerificationStatus: () =>
+    request<{ companyId: string; verificationStatus: string; documents: any[] }>("/provider/verification/status"),
+
+  uploadVerificationDocument: async (documentType: string, file: File) => {
+    const formData = new FormData();
+    formData.append("document", file);
+    formData.append("document_type", documentType);
+    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+    const res = await fetch(`${API_BASE}/provider/verification/documents/upload`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Upload failed" }));
+      throw new ApiError(res.status, err.error || "Upload failed");
+    }
+    return res.json();
+  },
+
+  deleteVerificationDocument: (id: string) =>
+    request<{ message: string }>(`/provider/verification/documents/${id}`, { method: "DELETE" }),
+
+  submitVerification: () =>
+    request<{ message: string }>("/provider/verification/submit", { method: "POST" }),
+
+  // Super Admin Dashboard
+  getSuperAdminDashboard: () =>
+    request<{
+      companies: { total: number; pending: number; active: number; rejected: number; payment_suspended: number; suspended: number };
+      pendingVerifications: number;
+      pendingDocuments: number;
+      planDistribution: { name: string; display_name: string; subscriber_count: number }[];
+      recentActivity: { action: string; count: number }[];
+    }>("/super-admin/dashboard"),
+
+  getSuperAdminCompanies: (params?: {
+    search?: string; status?: string; verificationStatus?: string; companyType?: string;
+    page?: string; limit?: string;
+  }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ companies: any[]; total: number; page: number; limit: number }>(`/super-admin/companies${qs ? `?${qs}` : ""}`);
+  },
+
+  getSuperAdminCompany: (id: string) =>
+    request<any>(`/super-admin/companies/${id}`),
+
+  superApproveCompany: (id: string, reason?: string) =>
+    request<{ message: string }>(`/super-admin/companies/${id}/approve`, { method: "POST", body: JSON.stringify({ reason }) }),
+
+  superRejectCompany: (id: string, reason?: string) =>
+    request<{ message: string }>(`/super-admin/companies/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) }),
+
+  superSuspendCompany: (id: string, reason?: string) =>
+    request<{ message: string }>(`/super-admin/companies/${id}/suspend`, { method: "POST", body: JSON.stringify({ reason }) }),
+
+  superReactivateCompany: (id: string, reason?: string) =>
+    request<{ message: string }>(`/super-admin/companies/${id}/reactivate`, { method: "POST", body: JSON.stringify({ reason }) }),
+
+  superPaymentSuspendCompany: (id: string, reason?: string) =>
+    request<{ message: string }>(`/super-admin/companies/${id}/payment-suspend`, { method: "POST", body: JSON.stringify({ reason }) }),
+
+  superClearPaymentSuspend: (id: string) =>
+    request<{ message: string }>(`/super-admin/companies/${id}/clear-payment-suspend`, { method: "POST" }),
+
+  getSuperAdminDocuments: (params?: { status?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ documents: any[]; total: number; page: number; limit: number }>(`/super-admin/documents${qs ? `?${qs}` : ""}`);
+  },
+
+  getDocumentDownloadUrl: (id: string) => `/api/super-admin/documents/${id}/download`,
+
+  approveDocument: (id: string, notes?: string) =>
+    request<{ message: string }>(`/super-admin/documents/${id}/approve`, { method: "POST", body: JSON.stringify({ notes }) }),
+
+  rejectDocument: (id: string, reason: string, notes?: string) =>
+    request<{ message: string }>(`/super-admin/documents/${id}/reject`, { method: "POST", body: JSON.stringify({ reason, notes }) }),
+
+  requestDocumentReupload: (id: string, reason: string, notes?: string) =>
+    request<{ message: string }>(`/super-admin/documents/${id}/request-reupload`, { method: "POST", body: JSON.stringify({ reason, notes }) }),
+
+  getAuditLogs: (params?: { action?: string; targetType?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ logs: any[]; total: number; page: number; limit: number }>(`/super-admin/audit-logs${qs ? `?${qs}` : ""}`);
+  },
+
+  getActivityLogs: (params?: { companyId?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ logs: any[]; total: number; page: number; limit: number }>(`/super-admin/activity-logs${qs ? `?${qs}` : ""}`);
+  },
+
+  getPlans: () =>
+    request<any[]>("/super-admin/plans"),
+
+  createPlan: (data: any) =>
+    request<any>("/super-admin/plans", { method: "POST", body: JSON.stringify(data) }),
+
+  updatePlan: (id: string, data: any) =>
+    request<any>(`/super-admin/plans/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  getCompanySubscriptions: (params?: { status?: string; page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ subscriptions: any[]; total: number; page: number; limit: number }>(`/super-admin/company-subscriptions${qs ? `?${qs}` : ""}`);
+  },
+
+  updateCompanySubscription: (id: string, data: { planId?: string; status?: string }) =>
+    request<{ message: string }>(`/super-admin/company-subscriptions/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Provider Readiness
+  getProviderReadiness: () =>
+    request<{ products: any[]; services: any[] }>("/provider/readiness"),
+
+  // Recommendation Events
+  trackRecommendationEvent: (data: {
+    buyerCompanyId: string;
+    providerCompanyId: string;
+    eventType: string;
+    offeringId?: string;
+    requestId?: string;
+    metadata?: Record<string, any>;
+  }) => request<{ message: string }>("/recommendation-events", { method: "POST", body: JSON.stringify(data) }),
+
+  // Scout Request Recommendations
+  getScoutRequestRecommendations: (id: string) =>
+    request<{ recommendations: any[]; request: any }>(`/requests/${id}/recommendations`),
+
+
+
+  // Account Status
+  getAccountStatus: () =>
+    request<{
+      account_status: string; role: string; company_role: string;
+      email: string; first_name: string; last_name: string;
+      company_id: string | null; company_name: string | null;
+      company_status: string | null; verification_status: string | null;
+      is_provider: boolean; company_type: string | null;
+      status_change_reason: string | null; status_changed_at: string | null;
+      rejection_reason: string | null;
+      subscription_status: string | null; plan_name: string | null; plan_display_name: string | null;
+    }>("/account/status"),
 
   // Generic
   get: <T>(path: string) => request<T>(path),

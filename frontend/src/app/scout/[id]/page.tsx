@@ -36,6 +36,9 @@ export default function ScoutRequestDetailPage() {
   const [fetching, setFetching] = useState(true);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [showRecs, setShowRecs] = useState(false);
+  const [recLoading, setRecLoading] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -52,16 +55,25 @@ export default function ScoutRequestDetailPage() {
   };
 
   const handleAccept = async (quoteId: string) => {
-    if (!confirm("Accept this quote and convert it to an order?")) return;
+    if (!confirm("Accept this proposal and create an agreement?")) return;
     setAccepting(quoteId);
     try {
-      const res = await api.acceptScoutQuote(id, quoteId);
-      toast.success(`Quote accepted — Order ${res.order.order_number} created`);
-      router.push(`/account/orders/${res.order.id}`);
+      const res = await api.acceptProposal(quoteId);
+      toast.success("Proposal accepted — Agreement created");
+      router.push(`/agreements/${res.agreement.id}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to accept quote");
+      toast.error(err instanceof ApiError ? err.message : "Failed to accept proposal");
       setAccepting(null);
     }
+  };
+
+  const loadRecommendations = async () => {
+    setRecLoading(true);
+    try {
+      const res = await api.getScoutRequestRecommendations(id);
+      setRecommendations(res.recommendations);
+    } catch { toast.error("Failed to load recommendations"); }
+    finally { setRecLoading(false); }
   };
 
   const handleCancel = async () => {
@@ -160,6 +172,75 @@ export default function ScoutRequestDetailPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Recommended Providers */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-ink">
+            Recommended Providers
+            {recommendations.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-muted">({recommendations.length})</span>
+            )}
+          </h2>
+          <button
+            onClick={() => { if (!showRecs) loadRecommendations(); setShowRecs(!showRecs); }}
+            className="text-sm font-medium text-accent hover:underline"
+          >
+            {showRecs ? "Hide" : "See recommendations"}
+          </button>
+        </div>
+
+        {showRecs && (
+          <div className="mt-4">
+            {recLoading ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-36 animate-pulse rounded-xl border border-border bg-surface" />
+                ))}
+              </div>
+            ) : recommendations.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border py-10 text-center">
+                <p className="text-sm text-muted">No recommendations available yet.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {recommendations.map((rec: any) => (
+                  <div key={rec.providerCompanyId} className="rounded-xl border border-border bg-white p-5 transition-shadow hover:shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-sm font-bold text-accent">
+                        {rec.providerName?.charAt(0) ?? "P"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-ink truncate">{rec.providerName}</p>
+                        <p className="text-xs text-muted">{rec.providerType?.replace(/_/g, " ") || "Provider"}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                        rec.finalScore >= 80 ? "bg-green-50 text-green-700" :
+                        rec.finalScore >= 50 ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
+                      }`}>
+                        {rec.finalScore}%
+                      </span>
+                    </div>
+                    {rec.matchReasons?.length > 0 && (
+                      <ul className="mt-3 space-y-1">
+                        {rec.matchReasons.map((r: any, i: number) => (
+                          <li key={i} className="flex items-start gap-1.5 text-xs text-muted">
+                            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent/40" />
+                            {r.reason || r}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {rec.offeringName && (
+                      <p className="mt-2 text-xs text-accent">Offering: {rec.offeringName}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Quote comparison */}
@@ -273,18 +354,18 @@ export default function ScoutRequestDetailPage() {
                       {accepting === q.id ? "Processing…" : (
                         <>
                           <CheckCircle size={16} weight="bold" />
-                          Accept &amp; Convert to Order
+                          Accept &amp; Create Agreement
                         </>
                       )}
                     </button>
                   )}
 
-                  {q.status === "accepted" && q.order_id && (
+                  {q.status === "accepted" && (
                     <Link
-                      href={`/account/orders/${q.order_id}`}
+                      href={`/agreements/${q.agreement_id || q.request_id}`}
                       className="btn mt-4 w-full gap-2 justify-center"
                     >
-                      View Order <ArrowRight size={14} />
+                      View Agreement <ArrowRight size={14} />
                     </Link>
                   )}
                 </div>

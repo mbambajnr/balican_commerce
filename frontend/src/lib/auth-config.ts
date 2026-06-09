@@ -39,6 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             company_name: data.user.company_name,
             company_status: data.user.company_status,
             is_provider: data.user.is_provider,
+            verification_status: data.user.verification_status,
             token: data.token,
           } as User;
         } catch {
@@ -66,6 +67,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.company_name = u.company_name;
         token.company_status = u.company_status;
         token.is_provider = u.is_provider;
+        token.verification_status = u.verification_status;
         token.token = u.token;
       }
       return token;
@@ -85,6 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.company_name = token.company_name;
       session.user.company_status = token.company_status;
       session.user.is_provider = token.is_provider;
+      session.user.verification_status = token.verification_status;
       session.token = token.token;
       return session;
     },

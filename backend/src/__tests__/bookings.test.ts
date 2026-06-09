@@ -2,7 +2,7 @@ import request from "supertest";
 import app from "../app";
 import { query } from "../config/db";
 import {
-  createTestUser, createTestCategory, createTestProduct,
+  createTestUser, createTestCompany, createTestCategory, createTestProduct,
   createTestOrder, createTestInvoice, generateToken,
 } from "./helpers";
 
@@ -10,6 +10,11 @@ import {
 const state: Record<string, any> = {};
 
 beforeAll(async () => {
+  // Create test companies
+  state.customerCompany = await createTestCompany("Booking Customer Co");
+  state.creditCompany = await createTestCompany("Booking Credit Co");
+  state.otherCompany = await createTestCompany("Booking Other Co");
+
   // Create test users
   state.adminUser = await createTestUser({
     email: "test-qa-booking-admin@test.com",
@@ -37,6 +42,7 @@ beforeAll(async () => {
     firstName: "Booking",
     lastName: "Customer",
     role: "customer",
+    companyId: state.customerCompany.id,
   });
 
   state.creditCustomer = await createTestUser({
@@ -48,6 +54,7 @@ beforeAll(async () => {
     creditLimit: 500000,
     paymentTermsDays: 30,
     companyName: "Booking Credit Corp",
+    companyId: state.creditCompany.id,
   });
 
   state.anotherCustomer = await createTestUser({
@@ -55,6 +62,7 @@ beforeAll(async () => {
     firstName: "Other",
     lastName: "Booking",
     role: "customer",
+    companyId: state.otherCompany.id,
   });
 
   // Create a product

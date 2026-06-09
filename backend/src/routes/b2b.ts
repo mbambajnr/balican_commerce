@@ -81,7 +81,7 @@ async function enforceCompanyCredit(client: TransactionClient, companyId: string
    Cart
    ═══════════════════════════════════════════════ */
 
-router.get("/cart", authenticate, async (req: AuthRequest, res: Response) => {
+router.get("/cart", authenticate, requireCompanyActive, async (req: AuthRequest, res: Response) => {
   try {
     let cart = await query(
       `SELECT id FROM carts WHERE user_id = $1`, [req.userId]
@@ -132,7 +132,7 @@ const addCartItemSchema = z.object({
   quantity: z.number().int().min(1).default(1),
 });
 
-router.post("/cart/items", authenticate, validate(addCartItemSchema), async (req: AuthRequest, res: Response) => {
+router.post("/cart/items", authenticate, requireCompanyActive, validate(addCartItemSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { productId, variantId, quantity } = req.body;
     let cart = await query(`SELECT id FROM carts WHERE user_id = $1`, [req.userId]);
@@ -170,7 +170,7 @@ router.post("/cart/items", authenticate, validate(addCartItemSchema), async (req
   }
 });
 
-router.patch("/cart/items/:id", authenticate, validate(z.object({ quantity: z.number().int().min(1) })), async (req: AuthRequest, res: Response) => {
+router.patch("/cart/items/:id", authenticate, requireCompanyActive, validate(z.object({ quantity: z.number().int().min(1) })), async (req: AuthRequest, res: Response) => {
   try {
     await query(
       `UPDATE cart_items SET quantity = $1, updated_at = NOW() WHERE id = $2 AND cart_id = (SELECT id FROM carts WHERE user_id = $3)`,
@@ -183,7 +183,7 @@ router.patch("/cart/items/:id", authenticate, validate(z.object({ quantity: z.nu
   }
 });
 
-router.delete("/cart/items/:id", authenticate, async (req: AuthRequest, res: Response) => {
+router.delete("/cart/items/:id", authenticate, requireCompanyActive, async (req: AuthRequest, res: Response) => {
   try {
     await query(
       `DELETE FROM cart_items WHERE id = $1 AND cart_id = (SELECT id FROM carts WHERE user_id = $2)`,

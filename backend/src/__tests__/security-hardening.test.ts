@@ -120,7 +120,7 @@ describe("Company active status — order creation enforcement", () => {
     expect(r.status).toBe(201);
   });
 
-  it("allows regular customer (no company) to create orders", async () => {
+  it("blocks regular customer (no company) from creating orders", async () => {
     const r = await request(app)
       .post("/api/orders")
       .set("Authorization", `Bearer ${regularCustomerToken}`)
@@ -128,7 +128,8 @@ describe("Company active status — order creation enforcement", () => {
         ...orderPayload,
         items: [{ productId: testProduct.id, name: testProduct.name, price: 5000, quantity: 1 }],
       });
-    expect(r.status).toBe(201);
+    expect(r.status).toBe(403);
+    expect(r.body.code).toBe("NO_COMPANY");
   });
 });
 

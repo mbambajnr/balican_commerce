@@ -32,6 +32,15 @@ export default function ProductListingClient() {
     api.getCategories().then((res) => setCategories(res.categories)).catch(() => {});
   }, []);
 
+  // Read category from URL query param on mount (e.g. ?category=hvac)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const catFromUrl = params.get("category");
+    if (catFromUrl) {
+      setCategory(catFromUrl);
+    }
+  }, []);
+
   const [subcategory, setSubcategory] = useState("");
 
   useEffect(() => {

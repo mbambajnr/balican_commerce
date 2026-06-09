@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { List, X, User, ArrowRight, ShoppingBag, FileText, Building, MagnifyingGlass, Storefront } from "@phosphor-icons/react";
+import { List, X, User, ArrowRight, FileText, Building, MagnifyingGlass, Storefront } from "@phosphor-icons/react";
 import NotificationBell from "@/components/NotificationBell";
 
 export default function Navbar() {
@@ -29,29 +29,40 @@ export default function Navbar() {
 
         {!isAdminAuth && (
           <nav className="hidden items-center gap-8 md:flex">
-            <Link href="/marketplace" className="text-sm text-zinc-300 transition-colors hover:text-white">
-              Marketplace
-            </Link>
-            <Link href="/products" className="text-sm text-zinc-300 transition-colors hover:text-white">
-              Products
-            </Link>
-            <Link href="/scout" className="text-sm text-zinc-300 transition-colors hover:text-white">
-              Scout
-            </Link>
-            {user && (
-              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} className="text-sm text-zinc-300 transition-colors hover:text-white">
-                My Requests
+            {/* Super admin sees only Super Admin nav */}
+            {user?.role === "super_admin" ? (
+              <Link href="/super-admin" data-testid="nav-super-admin" className="text-sm text-amber-300 font-medium transition-colors hover:text-amber-200">
+                Super Admin
               </Link>
-            )}
-            {(user?.role === "admin" || user?.role === "super_admin") && (
-              <Link href="/admin" className="text-sm text-zinc-300 transition-colors hover:text-white">
-                Admin
-              </Link>
-            )}
-            {(user as any)?.is_provider && (
-              <Link href="/provider" className="text-sm text-zinc-300 transition-colors hover:text-white">
-                Provider Dashboard
-              </Link>
+            ) : (
+              <>
+                <Link href="/marketplace" data-testid="nav-marketplace" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                  Marketplace
+                </Link>
+                <Link href="/scout" data-testid="nav-scout" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                  Scout
+                </Link>
+                {user && (
+                  <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} data-testid="nav-my-requests" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                    My Requests
+                  </Link>
+                )}
+                {user && (
+                  <Link href="/agreements" data-testid="nav-agreements" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                    Agreements
+                  </Link>
+                )}
+                {user?.role === "admin" && (
+                  <Link href="/admin" data-testid="nav-admin" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                    Admin
+                  </Link>
+                )}
+                {(user as any)?.is_provider && (
+                  <Link href="/provider" data-testid="nav-provider" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                    Provider Dashboard
+                  </Link>
+                )}
+              </>
             )}
           </nav>
         )}
@@ -69,9 +80,9 @@ export default function Navbar() {
                   </div>
                 )}
                 <NotificationBell />
-                <Link href="/account" className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3.5 py-2 text-xs font-medium text-white transition-all hover:bg-white/10">
+                <Link href={user?.role === "super_admin" ? "/super-admin" : (user as any)?.is_provider ? "/provider" : "/account"} className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3.5 py-2 text-xs font-medium text-white transition-all hover:bg-white/10">
                   <User size={16} />
-                  Account
+                  {user?.role === "super_admin" ? "Console" : (user as any)?.is_provider ? "Provider" : "Account"}
                 </Link>
                 <button onClick={() => signOut()} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 px-3.5 py-2 text-xs font-medium text-white transition-all hover:bg-white/10 active:scale-[0.97]">
                   Logout
@@ -104,34 +115,58 @@ export default function Navbar() {
       {mobileOpen && !isAdminAuth && (
         <div className="border-t border-white/10 bg-navy px-4 pb-6 pt-4 md:hidden">
           <nav className="flex flex-col gap-3">
-            <Link href="/marketplace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-              <Storefront size={18} /> Marketplace
-            </Link>
-            <Link href="/products" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-              <ShoppingBag size={18} /> Products
-            </Link>
-            <Link href="/scout" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-              <MagnifyingGlass size={18} /> Scout
-            </Link>
-            {user && (
-              <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-                <FileText size={18} /> My Requests
-              </Link>
-            )}
-            {(user?.role === "admin" || user?.role === "super_admin") && (
-              <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-                Admin
-              </Link>
-            )}
-            {(user as any)?.is_provider && (
-              <Link href="/provider" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-                Provider Dashboard
-              </Link>
+            {user?.role === "super_admin" ? (
+              <>
+                <Link href="/super-admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-amber-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  Super Admin
+                </Link>
+                <Link href="/super-admin/companies" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <Building size={18} /> Companies
+                </Link>
+                <Link href="/super-admin/documents" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <FileText size={18} /> Documents
+                </Link>
+                <Link href="/super-admin/audit-logs" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <FileText size={18} /> Audit Logs
+                </Link>
+                <Link href="/super-admin/plans" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <FileText size={18} /> Plans
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/marketplace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <Storefront size={18} /> Marketplace
+                </Link>
+                <Link href="/scout" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <MagnifyingGlass size={18} /> Scout
+                </Link>
+                {user && (
+                  <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                    <FileText size={18} /> My Requests
+                  </Link>
+                )}
+                {user && (
+                  <Link href="/agreements" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                    <FileText size={18} /> Agreements
+                  </Link>
+                )}
+                {user?.role === "admin" && (
+                  <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                    Admin
+                  </Link>
+                )}
+                {(user as any)?.is_provider && (
+                  <Link href="/provider" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                    Provider Dashboard
+                  </Link>
+                )}
+              </>
             )}
             <hr className="my-2 border-white/10" />
             {user ? (
               <>
-                <Link href="/account" className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-white/10 active:scale-[0.97]" onClick={() => setMobileOpen(false)}>Account</Link>
+                <Link href={user?.role === "super_admin" ? "/super-admin" : (user as any)?.is_provider ? "/provider" : "/account"} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-white/10 active:scale-[0.97]" onClick={() => setMobileOpen(false)}>{user?.role === "super_admin" ? "Console" : (user as any)?.is_provider ? "Provider" : "Account"}</Link>
                 <button onClick={() => { signOut(); setMobileOpen(false); }} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-white/10 active:scale-[0.97]">Logout</button>
               </>
             ) : (

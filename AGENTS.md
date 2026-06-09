@@ -1,5 +1,251 @@
 # SSLPLAN Session Summary
 
+---
+
+## Session 19 (Jun 4): Provider Offerings — Documents, Badges, Recommendations
+
+### Done
+
+1. **Offering Documents CRUD** (`backend/src/routes/provider-offerings.ts`):
+   - `POST /api/offerings/:type/:id/documents` — Upload document (product or service), validates document type per offering type, verifies ownership, stores in private storage
+   - `GET /api/offerings/:type/:id/documents` — List active documents for an offering
+   - `GET /api/offerings/documents/:id/download` — Stream file from private storage with auth
+   - `DELETE /api/offerings/documents/:id` — Soft-delete (set is_active=false) with ownership check
+   - `GET /api/offerings/:type/:id/document-badges` — Public badge list (is_public=true)
+   - `GET /api/requests/:id/recommendations` — Scout request recommendations from recommendation engine
+   - `GET /api/recommended-opportunities` — Provider-view recommended scout requests
+
+2. **Marketplace Document Badges** (`backend/src/routes/marketplace.ts`, `backend/src/routes/products.ts`):
+   - Product listing + detail: returned `document_badges` array from `offering_documents`
+   - Service listing + detail: returned `document_badges` array from `offering_documents`
+   - Subquery uses `COALESCE(json_agg(DISTINCT od.document_type), '[]'::json)` — empty array when no badges exist
+
+3. **Provider Dashboard Document Visibility** (`backend/src/routes/provider-dashboard.ts`):
+   - Product list: includes `documents` array (full doc metadata) via subquery
+   - Service list: includes `documents` array via subquery
+
+4. **Route Registration** (`backend/src/app.ts`): Registered `providerOfferingsRoutes` at `/api`
+
+5. **Export Fix**: `resolveProviderCompany` exported from `provider-dashboard.ts` for reuse in provider-offerings.ts
+
+### Files Created
+- `backend/src/routes/provider-offerings.ts` — 230 lines, 7 endpoints
+
+### Files Modified
+- `backend/src/routes/marketplace.ts` — Document badges on service listing + detail
+- `backend/src/routes/products.ts` — Document badges on product detail
+- `backend/src/routes/provider-dashboard.ts` — Document arrays on provider product/service list, exported `resolveProviderCompany`
+- `backend/src/app.ts` — Registered provider-offerings routes
+- `backend/src/__tests__/marketplace-hardening.test.ts` — Removed debug log
+
+### Verification
+- 736/736 backend tests passing (36 suites)
+- Backend TypeScript: clean
+- Frontend build (`next build`): clean
+
+### Fixes During Session
+- Fixed edit corruption: marketplace.ts service listing handler merged with detail handler after a too-broad edit — rewrote both handlers separately
+- Fixed import: `provider-offerings` uses named export from `./provider-dashboard`
+- Migration `migrate-offering-documents.ts` applied to dev DB before tests
+
+### Key Decisions
+- Offering documents use `offering_type` + `offering_id` polymorphic FK pattern to link to both products and services
+- Document badges exposed publicly only when `is_public=true`; provider dashboard shows all docs regardless
+- Soft-delete (`is_active=false`) for document removal instead of hard delete
+- File download uses private stream (not public URL) — requires auth
+- `resolveProviderCompany` exported from provider-dashboard for shared use
+
+### Critical Context
+- `offering_documents` table must exist (migration `migrate-offering-documents.ts`)
+- Document types differ by offering type: PRODUCT types (DATASHEET, SAFETY_DATASHEET, etc.) vs SERVICE types (COMPANY_PROFILE, INSURANCE_CERTIFICATE, etc.)
+- `GET /offerings/:type/:id/document-badges` is public (no auth) — only returns `is_public=true` docs
+- All other offering routes require `authenticate` middleware
+- Delete requires document ownership matching the authenticated provider's company
+- Recommendation and opportunity routes are read-only, use the recommendation-engine service
+
+---
+
+## Session 18 (Jun 3): Verified Provider Document Upload Flow
+
+### Done
+
+1. **Company Registration — Account Type Selector** (`frontend/src/app/auth/register/page.tsx`, `backend/src/routes/auth.ts`):
+   - Registration form now has a 2x2 grid company type selector (Buyer / Supplier / Service Provider / Both) with icons and descriptions, defaulting to "Buyer"
+   - Backend maps `companyType` to `company_type` ENUM, `is_provider`, `is_buyer`, and `verification_status` on INSERT
+   - Provider-type registrations (`supplier`, `service_provider`, `both`) get `verification_status = 'pending'` (requires admin verification)
+   - Buyer-only registrations get `verification_status = 'approved'` automatically
+
+2. **Admin Approve — Combined Company + Verification** (`backend/src/routes/admin.ts`):
+   - `PATCH /api/admin/companies/:id/approve` now also sets `verification_status = 'approved'` when approving provider-type companies (is_provider or company_type in supplier/service_provider/both)
+   - When rejecting, sets `verification_status = 'rejected'`
+   - Separate `company_verification` update is no longer needed — one approve action handles both
+
+3. **Admin Companies List — Type Badges & Filter** (`frontend/src/app/admin/companies/page.tsx`):
+   - Added "Type" column with icons (Buyer/Supplier/Service Provider/Both)
+   - Added "Verified" column showing verification_status badge for provider-type companies (buyers show "—")
+   - Added company type filter dropdown next to status filter (All Types / Buyer / Supplier / Service Provider / Both)
+   - Backend `GET /api/admin/companies` accepts new `companyType` query parameter
+
+4. **Admin Company Detail — Verification Status** (`frontend/src/app/admin/companies/[id]/page.tsx`):
+   - Company Details card shows "Account Type" with icon label
+   - Shows "Verification" badge for non-buyer companies (hidden for pure buyers)
+   - Approve/Reject buttons still in header — approval now also handles verification in one click
+
+5. **API Client Update** (`frontend/src/lib/api.ts`):
+   - `register()` accepts `companyType` field
+   - `getCompanies()` accepts `companyType` filter parameter
+
+### Session 16 (Jun 1): Provider Opportunities & Proposals
+
+### Done
+1. **Backend Route** (`backend/src/routes/provider-opportunities.ts`):
+   - `GET /api/provider/opportunities` — Lists open scout_requests with filters (category, requestType, location, deadline, search). Returns `proposal_count` and `my_proposal_status`. Sorts by closing-soon first. Hides buyer contact fields.
+   - `GET /api/provider/opportunities/:id` — Single opportunity detail with proposal count and buyer label ("Verified buyer").
+   - `POST /api/provider/opportunities/:id/proposals` — Submit/update proposal (upsert into `scout_quotes`). Blocks non-open requests and own-company requests.
+   - `GET /api/provider/opportunities/:id/my-proposal` — View own proposal.
+   - `GET /api/scout/requests/:id/proposals` — Buyer-facing: view proposals on their request (owner or admin only).
+
+2. **Route Registration** (`backend/src/app.ts`): Registered `provider-opportunities` at `/api`.
+
+3. **API Client** (`frontend/src/lib/api.ts`): Added `getProviderOpportunities()`, `getProviderOpportunity()`, `submitProviderProposal()`, `getProviderMyProposal()`, `getScoutRequestProposals()`.
+
+4. **Opportunities List** (`frontend/src/app/provider/opportunities/page.tsx`):
+   - Card-based list with search, category, requestType, location, deadline filters (debounced)
+   - Each card: title, type badge (Product/Service), category, location, quantity, deadline label, proposal count, "Proposal sent" or "Send proposal" CTA
+   - Closing-soon highlighted with amber left-border + badge
+   - Pagination
+
+5. **Opportunity Detail + Proposal** (`frontend/src/app/provider/opportunities/[id]/page.tsx`):
+   - Full request detail card with buyer label, budget, deadline, location
+   - Proposal form: amount (GH₵), delivery date, credit terms, proposal text
+   - Shows existing proposal with "Edit proposal" button
+   - Upsert pattern — updates existing proposal, no duplicate
+   - Validation: proposal text required (min 10 chars)
+
+6. **Navigation** (`frontend/src/app/provider/layout.tsx`):
+   - Added "Opportunities" (MagnifyingGlass icon) as second nav item after Dashboard
+
+### Key Decisions
+- Reused existing `scout_requests` + `scout_quotes` tables — no new migration, no new DB fields
+- Proposal maps to `scout_quotes`: `amount` → `quoted_price`, `deliveryDate` → `delivery_date`, `creditTerms` → `payment_terms`, `proposalText` → `notes`
+- One proposal per provider per request enforced by `(request_id, provider_company_id)` unique constraint + upsert
+- Buyer contact info never exposed to providers (always shows "Verified buyer")
+- Used `window.location.search` instead of `useSearchParams()` to avoid Suspense boundary
+- "Closing soon" = deadline within 7 days, sorted first
+
+### Files Created
+- `backend/src/routes/provider-opportunities.ts` — 329 lines, 5 endpoints
+- `frontend/src/app/provider/opportunities/page.tsx` — List with filters
+- `frontend/src/app/provider/opportunities/[id]/page.tsx` — Detail + proposal form
+- `backend/src/__tests__/provider-opportunities.test.ts` — 21 tests
+
+### Files Modified
+- `backend/src/app.ts` — Registered new route
+- `frontend/src/lib/api.ts` — Added 5 API methods
+- `frontend/src/app/provider/layout.tsx` — Added "Opportunities" nav item
+
+### Verification
+- 21/21 new tests passing
+- 111/111 related suite tests (scout + provider-dashboard + marketplace-hardening)
+- Backend TypeScript: clean
+- Frontend TypeScript: clean
+- Frontend build (`next build`): clean
+- All existing routes unchanged: `/marketplace`, `/scout`, `/scout/new`, `/scout/dashboard`
+
+---
+
+## Session 15 (Jun 1): Marketplace → Scout Handoff (Prefill from Category Links)
+
+### Done
+1. **Service Card Links Prefilled** (`frontend/src/app/marketplace/page.tsx`):
+   - Service category cards now link to `/scout/new?requestType=service_sourcing&category=<slug>&categoryName=<name>`
+   - All 6 service cards (HVAC, Electrical, Solar, Facility, Security, Industrial) pass encoded query params
+
+2. **Scout Form Reads Query Params** (`frontend/src/app/scout/new/page.tsx`):
+   - Reads `requestType`, `category` (slug), and `categoryName` from `window.location.search` on mount
+   - Maps `service_sourcing` → `requestType="service"`, `product_sourcing` → `requestType="product"`
+   - Resolves `category` slug to `categoryId` after categories load (async, non-blocking fallback)
+   - Category select auto-selects the matched category when available
+   - User can still change request type / category manually — no locking
+
+3. **Contextual Banner** (`frontend/src/app/scout/new/page.tsx`):
+   - Shows amber contextual banner when `categoryName` param is present: "Starting a service sourcing request from Marketplace — change category"
+   - Links back to `/marketplace` to change category
+
+4. **Helper Text Updated**:
+   - Service request: "Describe the service you need. Installation, maintenance, repair, provider availability, location, and response comparison."
+   - Product request: "Describe what you need. Product specs, quantity, delivery location, and quote comparison."
+
+5. **No Backend Changes**: All changes are frontend-only. No new DB fields, no new API endpoints, no migration.
+
+### Verification
+- Frontend TypeScript: clean (stale `.next/types` cache errors only)
+- Frontend build (`next build`): clean
+- Backend tests: 28/28 scout tests pass, 12/12 product-led-rfq, 24/24 marketplace-hardening — all clean
+- Direct URL testable: `/scout/new?requestType=service_sourcing&category=hvac&categoryName=HVAC%20Services`
+- Product RFQ flow from product page unchanged
+- Guest RFQ and authenticated RFQ submission unchanged
+
+### Key Decisions
+- Used `window.location.search` instead of `useSearchParams()` to avoid Next.js Suspense boundary requirement
+- No Suspense boundary wrapper needed — simpler component structure
+- Category slug → ID resolution happens asynchronously after categories load; silently no-ops if slug doesn't match (no crash)
+- `categoryName` param used for the banner only; `category` slug is the actual matching mechanism
+- Request type values `service_sourcing` / `product_sourcing` are URL-only aliases — mapped to existing `"service"`/`"product"` form values
+- Product category cards still link to `/products?category=<slug>` — unchanged from previous session
+
+### Files Modified
+- `frontend/src/app/marketplace/page.tsx` — Service card `href` updated with query params
+- `frontend/src/app/scout/new/page.tsx` — Query param parsing, category resolution, contextual banner, helper text
+
+---
+
+## Session 14 (Jun 1): Marketplace Category UX Polish
+
+### Done
+1. **Marketplace Layout Refactored** (`frontend/src/app/marketplace/page.tsx`):
+   - Quick-path comparison strip: "Need an item?" → Browse Products / "Need work done?" → Find Service Providers / "Need custom pricing?" → Start Scout RFQ
+   - Product Categories and Service Categories as two fully separate sections with distinct headings and helper text
+   - Clear section headings: "Browse Product Categories" / "Find Service Providers"
+   - Helper text: "Source physical goods, industrial equipment, materials..." / "Hire verified providers for installation, repair, maintenance..."
+
+2. **Card Design Differentiated**:
+   - Product cards: neutral `bg-accent/10` icon background, "Product" badge in accent, CTA "Browse products", link to `/products?category=<slug>`
+   - Service cards: `border-l-2 border-l-amber-400`, amber-toned icon background, "Service" badge in amber, CTA "Request service quote", link to `/scout/new`
+   - Microcopy per category slug (HVAC → "AC units, chillers, spare parts", Electrical → "Cables, switchgear, transformers", etc.)
+   - Product cards use `Cube`, `Lightning`, `Plug`, `Sun`, `Gear`, `Drop`, `ShieldCheck` icons
+   - Service cards use `Wrench`, `Plug`, `Sun`, `Gear`, `Drop`, `ShieldCheck`, `Broom` icons
+
+3. **Fallback States**:
+   - If no service categories returned from DB, renders `FALLBACK_SERVICE_CATEGORIES` static list (6 curated service categories)
+   - If no product categories returned, renders curated fallback too (6 product categories)
+
+4. **Copy Improvements**:
+   - Hero subtitle: "Discover suppliers and service providers across Ghana. Browse product catalogs or request competitive quotes for services."
+   - Explicit Marketplace vs Scout distinction in copy and path links
+   - Hero search bar stays
+
+5. **Verification**:
+   - Frontend TypeScript: clean
+   - Frontend build: clean (`next build` succeeds)
+   - All existing routes preserved (`/scout/new`, `/marketplace/services`, `/products`, `/scout`)
+
+### Key Decisions
+- Service cards link to `/scout/new` (the Scout request form, which has a product/service toggle) rather than adding query-param parsing
+- Service cards have `border-l-2 border-l-amber-400` for visual distinction — subtle but clear
+- Fallback category lists are static frontend data, no DB change needed
+- No backend changes required — all improvements are frontend-only
+- The `type` column on `categories` (product/service/both) is already supported by the marketplace endpoint
+
+### Critical Context
+- `frontend/src/app/marketplace/page.tsx` — sole file changed for this session
+- `/scout/new` page already has `requestType` toggle (product/service) — no query-param changes needed
+- The backend `GET /marketplace/categories` endpoint already returns each category's `type` field
+- `productCats = categories.filter(c => c.type === "product" || c.type === "both")` — handles `both` type categories
+- `serviceCats = categories.filter(c => c.type === "service" || c.type === "both")` — same
+
+---
+
 ## What was done
 
 ### 1. B2B Company Account System
@@ -878,3 +1124,38 @@ Add credit enforcement at the point where a buyer selects/accepted a provider qu
 - Phase 2.5 — Image upload for provider products/services
 - Phase 5 — Agreements and Fulfillment
 - Phase 6 — Procurement order fulfillment workflow
+
+---
+
+## Session 18 (Jun 3): Verified Provider Document Upload Flow
+
+### Done
+1. **Registration Bypass for Providers** (`backend/src/routes/auth.ts`):
+   - Changed provider/supplier registration to set `company.status='active'` and `user.account_status='active'` instead of `'pending'`
+   - Providers still get `verification_status='pending'` which blocks trading via `requireCompanyActive` middleware
+   - This lets providers log in and access the verification page to upload documents without being locked out by pending company status
+
+2. **Login Verification Redirect** (`frontend/src/app/auth/login/page.tsx`, `frontend/src/lib/auth-config.ts`, `frontend/src/types/next-auth.d.ts`):
+   - Added `verification_status` to the login API query and NextAuth JWT/session/user types
+   - Login redirect now routes unverified providers (`is_provider && verification_status in [pending, not_started, required, changes_requested]`) to `/provider/verification`
+   - Already-verified providers go to `/provider`, admins to `/admin`, super_admins to `/super-admin`, buyers to `/products`
+
+3. **Type Safety** (`frontend/src/types/next-auth.d.ts`):
+   - Added `verification_status: string | null` to Session.user, User, and JWT interfaces
+
+### Key Decisions
+- `company.status='active'` for ALL new registrations — company status is no longer the gate for provider access. Verification status serves that purpose.
+- Providers who haven't uploaded documents see the verification page immediately after login
+- The `requireCompanyActive` middleware still blocks unverified providers from trading (code `VERIFICATION_REQUIRED`)
+- `/provider/verification` endpoint uses only `authenticate` middleware (no `requireCompanyActive`) — so it works for unverified providers
+
+### Files Modified
+- `backend/src/routes/auth.ts` — Changed company insert from `'pending'` to `'active'`, user from `'pending'` to `'active'`, added `verification_status` to login query
+- `frontend/src/app/auth/login/page.tsx` — Redirect logic for unverified providers
+- `frontend/src/lib/auth-config.ts` — Added `verification_status` to authorize callback, JWT callback, session callback
+- `frontend/src/types/next-auth.d.ts` — Added `verification_status` to all three interfaces
+
+### Test Results
+- 735/736 backend tests passing (1 pre-existing b2b-credit test isolation issue)
+- Frontend TypeScript: clean
+- Frontend build (`next build`): clean

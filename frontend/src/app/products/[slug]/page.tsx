@@ -65,7 +65,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const breadcrumbItems = [
     { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
-    { "@type": "ListItem", position: 2, name: "Products", item: `${siteUrl}/products` },
+    { "@type": "ListItem", position: 2, name: "Marketplace", item: `${siteUrl}/marketplace` },
+    { "@type": "ListItem", position: 3, name: "Products", item: `${siteUrl}/products` },
   ];
   if (product.category_name) {
     const catItem: any = {
@@ -149,6 +150,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <nav aria-label="Breadcrumb" className="mb-6 text-xs text-muted">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li><Link href="/" className="hover:text-ink transition-colors">Home</Link></li>
+            <li>/</li>
+            <li><Link href="/marketplace" className="hover:text-ink transition-colors">Marketplace</Link></li>
             <li>/</li>
             <li><Link href="/products" className="hover:text-ink transition-colors">Products</Link></li>
             {product.category_name && product.category_slug && (

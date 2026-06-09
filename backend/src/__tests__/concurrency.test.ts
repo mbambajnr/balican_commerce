@@ -2,7 +2,7 @@ import request from "supertest";
 import app from "../app";
 import { query, transaction } from "../config/db";
 import {
-  createTestUser, createTestCategory, createTestProduct,
+  createTestUser, createTestCompany, createTestCategory, createTestProduct,
   createTestQuotation, createTestQuotationItem,
   createTestOrder, createTestInvoice, createTestBankTransfer,
   generateToken, cleanupTestData,
@@ -11,6 +11,8 @@ import {
 const state: Record<string, any> = {};
 
 beforeAll(async () => {
+  state.customerCompany = await createTestCompany("Concurrency Customer Co");
+
   state.adminUser = await createTestUser({
     email: "test-qa-concurrency-admin@test.com",
     firstName: "Concurrency",
@@ -23,6 +25,7 @@ beforeAll(async () => {
     firstName: "Concurrency",
     lastName: "Customer",
     role: "customer",
+    companyId: state.customerCompany.id,
   });
 
   state.adminToken = generateToken(state.adminUser.id, "admin");
@@ -158,6 +161,7 @@ describe("Concurrency hardening", () => {
   });
 
   test("CON-4: Only one concurrent credit order succeeds when near limit", async () => {
+    const creditCompany = await createTestCompany("Concurrency Credit Co");
     const creditUser = await createTestUser({
       email: `test-qa-credit-race-${Date.now()}@test.com`,
       firstName: "Credit",
@@ -165,6 +169,7 @@ describe("Concurrency hardening", () => {
       role: "customer",
       isCreditApproved: true,
       creditLimit: 15000,
+      companyId: creditCompany.id,
     });
     await query("UPDATE users SET outstanding_balance = 0 WHERE id = $1", [creditUser.id]);
     const creditToken = generateToken(creditUser.id, "customer");

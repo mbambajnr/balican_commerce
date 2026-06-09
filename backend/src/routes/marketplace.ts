@@ -241,7 +241,12 @@ router.get("/marketplace/products", async (req: Request, res: Response) => {
               p.price_visibility, p.images, p.stock_status, p.minimum_order_quantity,
               p.credit_eligible, p.created_at,
               c.id as provider_id, c.name as provider_name, c.logo_url as provider_logo,
-              pp.rating_average as provider_rating, pp.verification_badge
+              pp.rating_average as provider_rating, pp.verification_badge,
+              (SELECT COALESCE(json_agg(DISTINCT od.document_type), '[]'::json)
+               FROM offering_documents od
+               WHERE od.offering_type = 'PRODUCT' AND od.offering_id = p.id
+                 AND od.is_active = true AND od.is_public = true
+              ) as document_badges
        FROM products p
        JOIN companies c ON p.provider_company_id = c.id
        LEFT JOIN provider_profiles pp ON pp.company_id = c.id
@@ -353,7 +358,12 @@ router.get("/marketplace/services", async (req: Request, res: Response) => {
               s.images, s.created_at,
               cat.name as category_name, cat.slug as category_slug,
               c.id as provider_id, c.name as provider_name, c.logo_url as provider_logo,
-              pp.rating_average as provider_rating, pp.verification_badge
+              pp.rating_average as provider_rating, pp.verification_badge,
+              (SELECT COALESCE(json_agg(DISTINCT od.document_type), '[]'::json)
+               FROM offering_documents od
+               WHERE od.offering_type = 'SERVICE' AND od.offering_id = s.id
+                 AND od.is_active = true AND od.is_public = true
+              ) as document_badges
        FROM services s
        JOIN companies c ON s.provider_company_id = c.id
        LEFT JOIN provider_profiles pp ON pp.company_id = c.id
@@ -390,7 +400,12 @@ router.get("/marketplace/services/slug/:slug", async (req: Request, res: Respons
               s.images, s.created_at,
               cat.name as category_name, cat.slug as category_slug,
               c.id as provider_id, c.name as provider_name, c.logo_url as provider_logo,
-              pp.rating_average as provider_rating, pp.verification_badge
+              pp.rating_average as provider_rating, pp.verification_badge,
+              (SELECT COALESCE(json_agg(DISTINCT od.document_type), '[]'::json)
+               FROM offering_documents od
+               WHERE od.offering_type = 'SERVICE' AND od.offering_id = s.id
+                 AND od.is_active = true AND od.is_public = true
+              ) as document_badges
        FROM services s
        JOIN companies c ON s.provider_company_id = c.id
        LEFT JOIN provider_profiles pp ON pp.company_id = c.id

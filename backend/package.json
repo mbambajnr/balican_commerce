@@ -8,6 +8,7 @@
     "migrate": "tsx src/config/migrate.ts",
     "migrate-credits": "tsx src/config/migrate-credits.ts",
     "migrate-es": "tsx src/config/migrate-es.ts",
+    "seed": "tsx src/seed.ts",
     "test": "jest --forceExit --detectOpenHandles",
     "test:verbose": "jest --verbose --forceExit --detectOpenHandles",
     "typecheck": "tsc --noEmit"
@@ -33,6 +34,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",

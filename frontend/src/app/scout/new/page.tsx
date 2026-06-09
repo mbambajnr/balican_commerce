@@ -13,6 +13,7 @@ export default function NewScoutRequestPage() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<any[]>([]);
+  const [contextName, setContextName] = useState("");
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -28,19 +29,35 @@ export default function NewScoutRequestPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Flatten category tree into a single list for the select
-  function flattenCategories(nodes: any[], depth = 0): { id: string; name: string; depth: number }[] {
-    const out: { id: string; name: string; depth: number }[] = [];
+  function flattenCategories(nodes: any[], depth = 0): { id: string; name: string; depth: number; slug: string }[] {
+    const out: { id: string; name: string; depth: number; slug: string }[] = [];
     for (const n of nodes) {
-      out.push({ id: n.id, name: n.name, depth });
+      out.push({ id: n.id, name: n.name, depth, slug: n.slug });
       if (n.children?.length) out.push(...flattenCategories(n.children, depth + 1));
     }
     return out;
   }
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rt = params.get("requestType");
+    const slug = params.get("category");
+    const name = params.get("categoryName");
+
+    if (rt === "service_sourcing") set("requestType", "service");
+    else if (rt === "product_sourcing") set("requestType", "product");
+
+    if (name) setContextName(name);
+
     api.getCategories()
-      .then((r) => setCategories(flattenCategories(r.categories)))
+      .then((r) => {
+        const flat = flattenCategories(r.categories);
+        setCategories(flat);
+        if (slug) {
+          const cat = flat.find((c: any) => c.slug === slug);
+          if (cat) set("categoryId", cat.id);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -95,9 +112,21 @@ export default function NewScoutRequestPage() {
       <div className="mt-6">
         <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">New Scout Request</h1>
         <p className="mt-1 text-sm text-muted">
-          Describe what you need. Verified suppliers will submit their best quotes for you to compare.
+          {form.requestType === "service"
+            ? "Describe the service you need. Installation, maintenance, repair, provider availability, location, and response comparison."
+            : "Describe what you need. Product specs, quantity, delivery location, and quote comparison."}
         </p>
       </div>
+
+      {contextName && (
+        <div className="mt-6 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <Wrench size={16} className="shrink-0 text-amber-600" />
+          <span>
+            Starting a <strong>service sourcing request</strong> from Marketplace —{" "}
+            <Link href="/marketplace" className="underline hover:text-amber-900">change category</Link>
+          </span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
 

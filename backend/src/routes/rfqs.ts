@@ -3,7 +3,7 @@ import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { query, transaction } from "../config/db";
 import { config } from "../config";
-import { authenticate, requireAdmin, AuthRequest } from "../middleware/auth";
+import { authenticate, requireAdmin, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 
 const router = Router();
@@ -130,7 +130,7 @@ const createRfqSchema = z.object({
   referrer_url: z.string().max(2000).optional().nullable(),
 });
 
-router.post("/", authenticate, validate(createRfqSchema), async (req: AuthRequest, res: Response) => {
+router.post("/", authenticate, requireCompanyActive, validate(createRfqSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { productId, quantity, deliveryRequirements, notes,
       categoryId, requestType, deliveryLocation, deadlineAt,

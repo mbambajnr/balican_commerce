@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import {
   ShoppingBag, FileText, CalendarCheck, Users, ArrowRight,
   Tag, ClipboardText, CurrencyNgn, TrendUp, Bell, Plus,
-  Clock, DotsThree, Building
+  Clock, DotsThree, Building, Handshake, Storefront
 } from "@phosphor-icons/react";
 import { CardSkeleton } from "@/components/admin/LoadingSkeleton";
 import EmptyState from "@/components/admin/EmptyState";
@@ -22,6 +22,8 @@ const statIcons: Record<string, any> = {
   totalCustomers: Users,
   totalCompanies: Building,
   pendingCompanies: Clock,
+  totalProviders: Handshake,
+  totalBuyers: Storefront,
   creditOrders: CurrencyNgn,
 };
 
@@ -32,6 +34,8 @@ const statLabels: Record<string, string> = {
   totalCustomers: "Customers",
   totalCompanies: "Companies",
   pendingCompanies: "Pending Approvals",
+  totalProviders: "Providers",
+  totalBuyers: "Buyers",
   creditOrders: "Credit Orders",
 };
 
@@ -42,6 +46,8 @@ const statColours: Record<string, string> = {
   totalCustomers: "bg-amber-50 text-amber-600",
   totalCompanies: "bg-indigo-50 text-indigo-600",
   pendingCompanies: "bg-orange-50 text-orange-600",
+  totalProviders: "bg-teal-50 text-teal-600",
+  totalBuyers: "bg-sky-50 text-sky-600",
   creditOrders: "bg-cyan-50 text-cyan-600",
 };
 
@@ -120,11 +126,11 @@ export default function AdminDashboard() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || (user.role !== "admin" && user.role !== "super_admin"))) {
       router.push("/admin/login");
       return;
     }
-    if (user?.role === "admin") {
+    if (user?.role === "admin" || user?.role === "super_admin") {
       api.getDashboard().then(setData).catch(() => {});
     }
   }, [user, authLoading, router]);
@@ -148,6 +154,11 @@ export default function AdminDashboard() {
     { key: "totalBookings", value: data.stats.totalBookings, href: "/admin/bookings" },
     { key: "totalCompanies", value: data.stats.totalCompanies, href: "/admin/companies" },
     { key: "pendingCompanies", value: data.stats.pendingCompanies, href: "/admin/companies?status=pending" },
+  ];
+
+  const companyStats = [
+    { key: "totalProviders", value: data.stats.totalProviders, href: "/admin/companies?companyType=supplier" },
+    { key: "totalBuyers", value: data.stats.totalBuyers, href: "/admin/companies?companyType=buyer" },
   ];
 
   const financialStats = [
@@ -212,10 +223,27 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* ── Company Breakdown ── */}
+      <div className="mb-8">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-1">
+          {companyStats.map((s, i) => (
+            <div key={s.key} className="animate-fade-up" style={{ animationDelay: `${500 + i * 80}ms` }}>
+              <StatCard
+                label={statLabels[s.key]}
+                value={s.value}
+                icon={statIcons[s.key]}
+                color={statColours[s.key]}
+                href={s.href}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── Financial Row ── */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2">
         {financialStats.map((s, i) => (
-          <div key={s.label} className="animate-fade-up" style={{ animationDelay: `${500 + i * 80}ms` }}>
+          <div key={s.label} className="animate-fade-up" style={{ animationDelay: `${580 + i * 80}ms` }}>
             <FinCard
               label={s.label}
               value={s.value}

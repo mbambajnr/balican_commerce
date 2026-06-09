@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import NotificationBell from "@/components/NotificationBell";
 
-const navItems = [
+const allNavItems = [
   { label: "Dashboard", href: "/admin", icon: Layout },
   { label: "Products", href: "/admin/products", icon: Package },
   { label: "Categories", href: "/admin/categories", icon: Tag },
@@ -31,6 +31,10 @@ const navItems = [
   { label: "Procurement Activity", href: "/admin/procurement/activity", icon: ClipboardText },
 ];
 
+const superAdminNavItems: typeof allNavItems = [
+  { label: "Admin Users", href: "/admin/admins", icon: Users },
+];
+
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
@@ -43,8 +47,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/admin/login");
+      return;
     }
-  }, [user, loading, router]);
+    if (!loading && user?.role === "super_admin" && pathname.startsWith("/admin")) {
+      router.push("/super-admin");
+    }
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     return (
@@ -55,6 +63,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }
 
   if (!user) return null;
+
+  const navItems = user?.role === "super_admin"
+    ? [...allNavItems, ...superAdminNavItems]
+    : allNavItems;
 
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";

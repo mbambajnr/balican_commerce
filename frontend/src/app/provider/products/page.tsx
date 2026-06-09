@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/format";
 
 export default function ProviderProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
+  const [readiness, setReadiness] = useState<any[]>([]);
   const [pagination, setPagination] = useState<any>({ page: 1, limit: 20, total: 0, pages: 0 });
   const [filters, setFilters] = useState({ search: "", status: "" });
   const [loading, setLoading] = useState(true);
@@ -20,9 +21,13 @@ export default function ProviderProductsPage() {
       const params: any = { page: String(page), limit: "20" };
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
-      const res = await api.getProviderProducts(params);
-      setProducts(res.products);
-      setPagination(res.pagination);
+      const [prodRes, readRes] = await Promise.all([
+        api.getProviderProducts(params),
+        api.getProviderReadiness().catch(() => ({ products: [], services: [] })),
+      ]);
+      setProducts(prodRes.products);
+      setPagination(prodRes.pagination);
+      setReadiness(readRes.products);
     } catch { toast.error("Failed to load products"); }
     finally { setLoading(false); }
   }, [filters]);
@@ -35,6 +40,19 @@ export default function ProviderProductsPage() {
       toast.success("Status toggled");
       loadProducts(pagination.page);
     } catch { toast.error("Failed to toggle"); }
+  };
+
+  const readinessMap = Object.fromEntries(readiness.map((r: any) => [r.id, r]));
+
+  const ReadinessBadge = ({ product }: { product: any }) => {
+    const info = readinessMap[product.id];
+    if (!info) return null;
+    if (info.status === "ready") return <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Ready</span>;
+    if (info.status === "needs_work") {
+      const count = info.issues.filter((i: string) => i !== "Draft/private").length;
+      return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{count} issue{count > 1 ? "s" : ""}</span>;
+    }
+    return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Draft</span>;
   };
 
   return (
@@ -89,6 +107,7 @@ export default function ProviderProductsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted">Price</th>
                 <th className="px-4 py-3 text-left font-medium text-muted">Stock</th>
                 <th className="px-4 py-3 text-left font-medium text-muted">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted">Readiness</th>
                 <th className="px-4 py-3 text-right font-medium text-muted">Actions</th>
               </tr>
             </thead>
@@ -102,7 +121,7 @@ export default function ProviderProductsPage() {
                   </tr>
                 ))
               ) : products.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted">No products found.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-muted">No products found.</td></tr>
               ) : (
                 products.map((p: any) => (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-surface/30">
@@ -127,7 +146,13 @@ export default function ProviderProductsPage() {
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.is_active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                         {p.is_active ? "Active" : "Inactive"}
                       </span>
+                      {p.documents?.length > 0 && (
+                        <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600" title={`${p.documents.length} document${p.documents.length > 1 ? "s" : ""}`}>
+                          {p.documents.length} doc{p.documents.length > 1 ? "s" : ""}
+                        </span>
+                      )}
                     </td>
+                    <td className="px-4 py-3"><ReadinessBadge product={p} /></td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button

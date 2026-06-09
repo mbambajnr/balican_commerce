@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -15,6 +16,7 @@ import {
 
 export default function CompanyDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<any>(null);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -23,6 +25,16 @@ export default function CompanyDashboard() {
   const [vettingStatus, setVettingStatus] = useState<any>(null);
 
   useEffect(() => {
+    // Super admins belong on the platform operator dashboard
+    if (user?.role === "super_admin") {
+      router.replace("/super-admin");
+      return;
+    }
+    // Providers/suppliers belong on the provider dashboard
+    if ((user as any)?.is_provider) {
+      router.replace("/provider");
+      return;
+    }
     if (!user) { setLoading(false); return; }
     api.getCompanyDashboard()
       .then(setDashboard)

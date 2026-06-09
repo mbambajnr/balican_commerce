@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import argon2 from "argon2";
 import multer from "multer";
 import { query, transaction } from "../config/db";
-import { authenticate, requireAdmin, requireRole, AuthRequest } from "../middleware/auth";
+import { authenticate, requireAdmin, requireSuperAdmin, requireRole, AuthRequest } from "../middleware/auth";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { slugify } from "../utils/helpers";
@@ -42,13 +42,16 @@ const adminUpdateProductSchema = z.object({
 
 router.get("/dashboard", authenticate, requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
-    const [orders, rfqs, bookings, users, companies, pendingCompanies, recentOrders, pendingRfqs, creditStats, orderTypeStats] = await Promise.all([
+    const [orders, rfqs, bookings, users, companies, pendingCompanies,
+      providers, buyers, recentOrders, pendingRfqs, creditStats, orderTypeStats] = await Promise.all([
       query("SELECT COUNT(*) FROM orders"),
       query("SELECT COUNT(*) FROM rfqs"),
       query("SELECT COUNT(*) FROM service_bookings"),
       query("SELECT COUNT(*) FROM users WHERE role = 'customer'"),
       query("SELECT COUNT(*) FROM companies"),
       query("SELECT COUNT(*) FROM companies WHERE status = 'pending'"),
+      query("SELECT COUNT(*) FROM companies WHERE is_provider = true"),
+      query("SELECT COUNT(*) FROM companies WHERE is_buyer = true"),
       query("SELECT * FROM orders ORDER BY created_at DESC LIMIT 5"),
       query("SELECT r.*, p.name as product_name, u.first_name, u.last_name FROM rfqs r LEFT JOIN products p ON r.product_id = p.id LEFT JOIN users u ON r.user_id = u.id WHERE r.status = 'pending' ORDER BY r.created_at DESC LIMIT 10"),
       query(`SELECT
@@ -73,6 +76,8 @@ router.get("/dashboard", authenticate, requireAdmin, async (_req: AuthRequest, r
         totalCustomers: parseInt(users.rows[0].count),
         totalCompanies: parseInt(companies.rows[0].count),
         pendingCompanies: parseInt(pendingCompanies.rows[0].count),
+        totalProviders: parseInt(providers.rows[0].count),
+        totalBuyers: parseInt(buyers.rows[0].count),
         creditOrders: parseInt(creditStats.rows[0].credit_orders),
         creditTotal: parseFloat(creditStats.rows[0].credit_total),
         totalOutstanding: parseFloat(creditStats.rows[0].total_outstanding),
@@ -998,7 +1003,7 @@ router.patch("/categories/:id", authenticate, requireAdmin, validate(z.object({
 
 router.get("/companies", authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { search, status, page = "1", limit = "20" } = req.query;
+    const { search, status, page = "1", limit = "20", companyType } = req.query;
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const offset = (pageNum - 1) * limitNum;
@@ -1012,6 +1017,10 @@ router.get("/companies", authenticate, requireAdmin, async (req: Request, res: R
     if (status) {
       conditions.push(`c.status = $${params.length + 1}`);
       params.push(status);
+    }
+    if (companyType) {
+      conditions.push(`c.company_type = $${params.length + 1}::company_type`);
+      params.push(companyType);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -1101,9 +1110,17 @@ router.patch("/companies/:id/approve", authenticate, requireAdmin, validate(appr
   try {
     const { status, rejectionReason, customerGroupId, assignedSalesRepId, creditLimit, paymentTermsDays } = req.body;
 
+    // When approving a provider company, also set verification_status
     const companyResult = await query(
-      `UPDATE companies SET status = $1, rejection_reason = $2, customer_group_id = COALESCE($3, customer_group_id),
-        assigned_sales_rep_id = COALESCE($4, assigned_sales_rep_id), updated_at = NOW()
+      `UPDATE companies SET status = $1, rejection_reason = $2,
+        customer_group_id = COALESCE($3, customer_group_id),
+        assigned_sales_rep_id = COALESCE($4, assigned_sales_rep_id),
+        verification_status = CASE
+          WHEN $1 = 'active' AND (is_provider = true OR company_type IN ('supplier', 'service_provider', 'both_supplier_and_service_provider')) THEN 'approved'::verification_status
+          WHEN $1 = 'rejected' THEN 'rejected'::verification_status
+          ELSE verification_status
+        END,
+        updated_at = NOW()
        WHERE id = $5 RETURNING *`,
       [status, rejectionReason || null, customerGroupId || null, assignedSalesRepId || null, req.params.id]
     );
@@ -1909,6 +1926,159 @@ router.get(
     } catch (err) {
       console.error("Operations summary error:", err);
       res.status(500).json({ error: "Failed to fetch operations summary" });
+    }
+  }
+);
+
+/* ─────────────────────────────────────────
+   Super Admin: Admin User Management
+   ───────────────────────────────────────── */
+
+const createAdminSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  phone: z.string().optional(),
+});
+
+router.get(
+  "/admins",
+  authenticate,
+  requireSuperAdmin,
+  async (_req: AuthRequest, res: Response) => {
+    try {
+      const result = await query(
+        `SELECT id, email, first_name, last_name, phone, role, account_status, created_at, updated_at
+         FROM users WHERE role IN ('admin', 'super_admin')
+         ORDER BY created_at DESC`
+      );
+      res.json({
+        admins: result.rows.map((u: any) => ({
+          id: u.id,
+          email: u.email,
+          firstName: u.first_name,
+          lastName: u.last_name,
+          phone: u.phone,
+          role: u.role,
+          status: u.account_status,
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
+        })),
+      });
+    } catch (err) {
+      console.error("List admins error:", err);
+      res.status(500).json({ error: "Failed to list admin users" });
+    }
+  }
+);
+
+router.post(
+  "/admins",
+  authenticate,
+  requireSuperAdmin,
+  validate(createAdminSchema),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { email, password, firstName, lastName, phone } = req.body;
+
+      // Check if email already exists
+      const existing = await query("SELECT id FROM users WHERE email = $1", [email]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: "A user with this email already exists" });
+      }
+
+      const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+
+      const result = await query(
+        `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, account_status)
+         VALUES ($1, $2, $3, $4, $5, 'admin', 'active')
+         RETURNING id, email, first_name, last_name, phone, role, account_status, created_at`,
+        [email, passwordHash, firstName, lastName, phone || null]
+      );
+
+      const u = result.rows[0];
+      res.status(201).json({
+        admin: {
+          id: u.id,
+          email: u.email,
+          firstName: u.first_name,
+          lastName: u.last_name,
+          phone: u.phone,
+          role: u.role,
+          status: u.account_status,
+          createdAt: u.created_at,
+        },
+      });
+    } catch (err) {
+      console.error("Create admin error:", err);
+      res.status(500).json({ error: "Failed to create admin user" });
+    }
+  }
+);
+
+router.patch(
+  "/admins/:id/disable",
+  authenticate,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.params.id;
+
+      // Prevent disabling self
+      if (userId === req.userId) {
+        return res.status(400).json({ error: "You cannot disable your own account" });
+      }
+
+      const result = await query(
+        "SELECT id, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin')",
+        [userId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      // Prevent disabling another super_admin
+      if (result.rows[0].role === "super_admin") {
+        return res.status(403).json({ error: "You cannot disable another super admin" });
+      }
+
+      await query(
+        "UPDATE users SET account_status = 'suspended', updated_at = NOW() WHERE id = $1",
+        [userId]
+      );
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Disable admin error:", err);
+      res.status(500).json({ error: "Failed to disable admin user" });
+    }
+  }
+);
+
+router.patch(
+  "/admins/:id/enable",
+  authenticate,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const result = await query(
+        "SELECT id FROM users WHERE id = $1 AND role IN ('admin', 'super_admin')",
+        [req.params.id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      await query(
+        "UPDATE users SET account_status = 'active', updated_at = NOW() WHERE id = $1",
+        [req.params.id]
+      );
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Enable admin error:", err);
+      res.status(500).json({ error: "Failed to enable admin user" });
     }
   }
 );

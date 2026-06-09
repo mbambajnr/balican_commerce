@@ -21,6 +21,7 @@ const registerSchema = z.object({
   phone: z.string().optional(),
   // B2B company fields
   companyName: z.string().min(1, "Company name is required"),
+  companyType: z.enum(["buyer", "supplier", "service_provider", "both"]).optional(),
   businessType: z.string().optional(),
   industry: z.string().optional(),
   address: z.string().optional(),
@@ -57,7 +58,7 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
   try {
     const {
       email, password, firstName, lastName, phone,
-      companyName, businessType, industry, address, city, state,
+      companyName, companyType, businessType, industry, address, city, state,
       taxId, businessRegistrationNumber,
       contactPersonName, contactPersonEmail, contactPersonPhone,
       requestedPaymentTerms,
@@ -75,6 +76,15 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
     );
     const defaultGroupId = groupResult.rows[0]?.id || null;
 
+    // Map companyType to is_provider, is_buyer, and company_type
+    const companyTypeEnum = (companyType === "both" ? "both_supplier_and_service_provider"
+      : companyType === "supplier" ? "supplier"
+      : companyType === "service_provider" ? "service_provider"
+      : "buyer") as string;
+    const isProvider = companyType === "supplier" || companyType === "service_provider" || companyType === "both";
+    const isBuyer = companyType === "buyer" || companyType === "both" || !companyType;
+    const verificationStatus = isProvider ? "pending" : "approved";
+
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
     // Create company
@@ -82,13 +92,16 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
       `INSERT INTO companies (name, business_type, industry, email, phone,
         address, city, state, tax_id, business_registration_number,
         contact_person_name, contact_person_email, contact_person_phone,
-        requested_payment_terms, customer_group_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'pending')
+        requested_payment_terms, customer_group_id, status,
+        company_type, is_provider, is_buyer, verification_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active',
+         $16::company_type, $17, $18, $19::verification_status)
        RETURNING id, name, status`,
       [companyName, businessType || null, industry || null, email, phone || null,
        address || null, city || null, state || null, taxId || null, businessRegistrationNumber || null,
        contactPersonName || `${firstName} ${lastName}`, contactPersonEmail || email, contactPersonPhone || phone || null,
-       requestedPaymentTerms || null, defaultGroupId]
+       requestedPaymentTerms || null, defaultGroupId,
+       companyTypeEnum, isProvider, isBuyer, verificationStatus]
     );
     const company = companyResult.rows[0];
 
@@ -97,7 +110,7 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
       `INSERT INTO users (email, password_hash, first_name, last_name, phone,
         company_id, company_role, account_status, company_name, tax_id, business_registration_number,
         utm_source, utm_campaign, utm_medium, referrer_url)
-       VALUES ($1, $2, $3, $4, $5, $6, 'company_admin', 'pending', $7, $8, $9,
+       VALUES ($1, $2, $3, $4, $5, $6, 'company_admin', 'active', $7, $8, $9,
          $10, $11, $12, $13)
        RETURNING id, email, first_name, last_name, phone, role, company_id, created_at`,
       [email, passwordHash, firstName, lastName, phone || null,
@@ -335,7 +348,7 @@ router.post("/login", validate(loginSchema), async (req, res: Response) => {
                u.credit_limit, u.outstanding_balance, u.store_credit,
                u.created_at,
                c.name as company_name, c.status as company_status,
-               c.is_provider
+               c.is_provider, c.verification_status
         FROM users u
         LEFT JOIN companies c ON u.company_id = c.id
        WHERE u.email = $1`,

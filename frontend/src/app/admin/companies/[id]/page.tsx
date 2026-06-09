@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { PageSkeleton } from "@/components/admin/LoadingSkeleton";
 import toast from "react-hot-toast";
-import { CheckCircle, Clock, XCircle, NotePencil, Clipboard } from "@phosphor-icons/react";
+import { CheckCircle, Clock, XCircle, NotePencil, Clipboard, ShoppingCart, Toolbox, Handshake, ArrowsLeftRight, ShieldCheck } from "@phosphor-icons/react";
 
 export default function CompanyDetailPage() {
   const { id } = useParams();
@@ -253,8 +253,27 @@ export default function CompanyDetailPage() {
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between"><dt className="text-muted">Status</dt>
               <dd><span className={`badge ${company.status === "active" ? "badge-green" : company.status === "pending" ? "badge-yellow" : "badge-red"}`}>{company.status}</span></dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Account Type</dt>
+              <dd>{(() => {
+                const typeLabels: Record<string, { label: string; icon: any }> = {
+                  buyer: { label: "Buyer", icon: ShoppingCart },
+                  supplier: { label: "Supplier", icon: Toolbox },
+                  service_provider: { label: "Service Provider", icon: Handshake },
+                  both_supplier_and_service_provider: { label: "Both", icon: ArrowsLeftRight },
+                };
+                const info = typeLabels[company.company_type];
+                if (!info) return <span className="text-muted">—</span>;
+                const Icon = info.icon;
+                return <span className="flex items-center gap-1.5"><Icon size={14} className="text-muted" /> {info.label}</span>;
+              })()}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Credit Status</dt>
               <dd><span className={`badge ${creditStatusBadge(company.credit_status)}`}>{company.credit_status?.replace(/_/g, " ") || "not requested"}</span></dd></div>
+            {company.company_type !== "buyer" && company.company_type && (
+              <div className="flex justify-between"><dt className="text-muted">Verification</dt>
+                <dd><span className={`badge ${company.verification_status === "approved" ? "badge-green" : company.verification_status === "pending" ? "badge-yellow" : "badge-red"}`}>
+                  {company.verification_status || "pending"}
+                </span></dd></div>
+            )}
             <div className="flex justify-between"><dt className="text-muted">Business Type</dt><dd>{company.business_type || "\u2014"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Industry</dt><dd>{company.industry || "\u2014"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Tax / TIN</dt><dd>{company.tax_id || "\u2014"}</dd></div>

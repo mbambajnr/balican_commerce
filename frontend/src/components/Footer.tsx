@@ -1,36 +1,40 @@
 import Link from "next/link";
-import { Envelope, Phone, MapPin, ArrowRight, ShoppingBag, FileText, Wrench, BuildingOffice, ShieldCheck } from "@phosphor-icons/react/dist/ssr";
+import {
+  Envelope, Phone, MapPin, ArrowRight,
+  Storefront, MagnifyingGlass, ShoppingBag, FileText,
+  Wrench, UserGear, ChartBar, SealCheck,
+} from "@phosphor-icons/react/dist/ssr";
 
 export default function Footer() {
   return (
     <footer className="border-t border-white/10 bg-navy-dark">
-      {/* Main footer */}
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
-          <div className="sm:col-span-2 lg:col-span-1">
+          <div>
             <Link href="/" className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white text-xs font-bold tracking-tight">BC</div>
               <span className="font-display text-base font-semibold tracking-tight text-white">Bali-Can Limited</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400 max-w-xs">
-              End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, solar, appliances, and B2B procurement.
+              B2B procurement platform for Ghana. Source industrial products, compare provider quotes, and manage agreements — HVAC, electricals, solar, appliances, and more.
             </p>
           </div>
 
-          {/* Quick Links */}
+          {/* For Buyers */}
           <div>
-            <h3 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">Quick Links</h3>
+            <h3 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">For Buyers</h3>
             <ul className="mt-4 space-y-3">
               {[
-                { label: "Products", href: "/products", icon: ShoppingBag },
-                { label: "Request a Quote", href: "/rfq/new", icon: FileText },
+                { label: "Marketplace", href: "/marketplace", icon: Storefront },
+                { label: "Browse Products", href: "/products", icon: ShoppingBag },
+                { label: "Procurement Requests", href: "/scout", icon: MagnifyingGlass },
+                { label: "Agreements", href: "/agreements", icon: FileText },
                 { label: "Book Installation", href: "/booking", icon: Wrench },
-                { label: "B2B Procurement", href: "/b2b-procurement", icon: BuildingOffice },
               ].map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="group flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-white">
-                    <link.icon size={14} weight="duotone" className="text-zinc-600 group-hover:text-accent transition-colors" />
+                    <link.icon size={14} weight="duotone" className="text-zinc-600 group-hover:text-accent transition-colors shrink-0" />
                     {link.label}
                   </Link>
                 </li>
@@ -38,7 +42,28 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* For Providers */}
+          <div>
+            <h3 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">For Providers</h3>
+            <ul className="mt-4 space-y-3">
+              {[
+                { label: "Opportunities", href: "/provider/opportunities", icon: MagnifyingGlass },
+                { label: "Dashboard", href: "/provider", icon: ChartBar },
+                { label: "My Products", href: "/provider/products", icon: ShoppingBag },
+                { label: "My Services", href: "/provider/services", icon: Wrench },
+                { label: "Provider Profile", href: "/provider/profile", icon: UserGear },
+              ].map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="group flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-white">
+                    <link.icon size={14} weight="duotone" className="text-zinc-600 group-hover:text-accent transition-colors shrink-0" />
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Contact & Policies */}
           <div>
             <h3 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">Contact</h3>
             <ul className="mt-4 space-y-3">
@@ -59,19 +84,14 @@ export default function Footer() {
                 </a>
               </li>
             </ul>
-          </div>
 
-          {/* Policies & CTA */}
-          <div>
-            <h3 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">Policies</h3>
-            <ul className="mt-4 space-y-3">
+            <h3 className="mt-6 text-xs font-semibold tracking-wider uppercase text-zinc-500">Policies</h3>
+            <ul className="mt-4 space-y-2">
               {[
                 { label: "Terms of Service", href: "/terms" },
                 { label: "Privacy Policy", href: "/privacy" },
                 { label: "Shipping Policy", href: "/shipping-policy" },
                 { label: "Returns & Refunds", href: "/returns-policy" },
-                { label: "Legal Notice", href: "/legal" },
-                { label: "RFQ Guide", href: "/rfq-guide" },
               ].map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-sm text-zinc-400 transition-colors hover:text-white">
@@ -96,14 +116,14 @@ export default function Footer() {
       <div className="border-t border-white/5">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <p className="text-xs text-zinc-600">&copy; {new Date().getFullYear()} Bali-Can Limited. All rights reserved. <span className="hidden sm:inline">Last updated June 2026.</span></p>
+            <p className="text-xs text-zinc-600">&copy; {new Date().getFullYear()} Bali-Can Limited. All rights reserved.</p>
             <div className="flex items-center gap-4 text-xs text-zinc-600">
               <span className="flex items-center gap-1.5">
-                <ShieldCheck size={12} weight="duotone" />
+                <SealCheck size={12} weight="duotone" />
                 Secure transactions
               </span>
               <span className="hidden sm:inline">&middot;</span>
-              <span>Industrial Supply &amp; Services, Ghana</span>
+              <span>B2B Procurement, Ghana</span>
             </div>
           </div>
         </div>

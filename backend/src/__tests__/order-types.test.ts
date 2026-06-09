@@ -2,7 +2,7 @@ import { query } from "../config/db";
 import app from "../app";
 import supertest from "supertest";
 import {
-  createTestUser, createTestCategory, createTestProduct,
+  createTestUser, createTestCompany, createTestCategory, createTestProduct,
   createTestQuotation, createTestQuotationItem, createTestOrder,
   generateToken, cleanupTestData, makeEmail, TEST_PREFIX,
 } from "./helpers";
@@ -19,10 +19,13 @@ let productId: string;
 beforeAll(async () => {
   await cleanupTestData();
 
+  const company = await createTestCompany("OT Customer Co");
+
   const customer = await createTestUser({
     email: makeEmail("ot-customer"),
     firstName: "OrderType",
     lastName: "Customer",
+    companyId: company.id,
   });
   customerId = customer.id;
   customerToken = generateToken(customerId, "customer");

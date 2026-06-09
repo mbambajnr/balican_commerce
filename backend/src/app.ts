@@ -23,6 +23,12 @@ import marketplaceRoutes from "./routes/marketplace";
 import providerDashboardRoutes from "./routes/provider-dashboard";
 import procurementRoutes from "./routes/procurement";
 import scoutRoutes from "./routes/scout";
+import providerOpportunitiesRoutes from "./routes/provider-opportunities";
+import agreementsRoutes from "./routes/agreements";
+import providerVerificationRoutes from "./routes/provider-verification";
+import superAdminRoutes from "./routes/super-admin";
+import accountStatusRoutes from "./routes/account-status";
+import { providerOfferingsRoutes } from "./routes/provider-offerings";
 
 const app = express();
 
@@ -73,6 +79,12 @@ app.use("/api", marketplaceRoutes);
 app.use("/api", providerDashboardRoutes);
 app.use("/api", procurementRoutes);
 app.use("/api", scoutRoutes);
+app.use("/api", providerOpportunitiesRoutes);
+app.use("/api", agreementsRoutes);
+app.use("/api/provider", providerVerificationRoutes);
+app.use("/api/super-admin", superAdminRoutes);
+app.use("/api", accountStatusRoutes);
+app.use("/api", providerOfferingsRoutes);
 
 const uploadsDir = path.resolve(config.upload.dir);
 app.use("/uploads", express.static(uploadsDir));

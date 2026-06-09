@@ -77,7 +77,8 @@ export default function ProductsPage() {
         "@id": `${siteUrl}/products#breadcrumb`,
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
-          { "@type": "ListItem", position: 2, name: "Products", item: `${siteUrl}/products` },
+          { "@type": "ListItem", position: 2, name: "Marketplace", item: `${siteUrl}/marketplace` },
+          { "@type": "ListItem", position: 3, name: "Products", item: `${siteUrl}/products` },
         ],
       },
       {
@@ -98,13 +99,21 @@ export default function ProductsPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <nav aria-label="Breadcrumb" className="mb-6 text-xs text-muted">
+        <nav aria-label="Breadcrumb" className="mb-2 text-xs text-muted">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li><Link href="/" className="hover:text-ink transition-colors">Home</Link></li>
+            <li>/</li>
+            <li><Link href="/marketplace" className="hover:text-ink transition-colors">Marketplace</Link></li>
             <li>/</li>
             <li className="text-ink font-medium">Products</li>
           </ol>
         </nav>
+        <p className="mb-6 text-[11px] text-soft">
+          Products are part of the Bali-Can Marketplace.{' '}
+          <Link href="/marketplace" className="text-accent hover:underline">Browse Marketplace</Link>
+          {' '}or{' '}
+          <Link href="/scout" className="text-accent hover:underline">use Scout</Link> for custom sourcing or service requests.
+        </p>
         <ProductListingClient />
 
         <div className="mt-20 space-y-16">

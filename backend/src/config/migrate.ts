@@ -89,9 +89,6 @@ CREATE TABLE IF NOT EXISTS product_attributes (
 CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_attributes_product ON product_attributes(product_id);
 
-ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50);
-ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id UUID;
-
 CREATE TABLE IF NOT EXISTS rfqs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id),
@@ -227,6 +224,9 @@ CREATE INDEX IF NOT EXISTS idx_leads_stage ON leads(stage_id);
 CREATE INDEX IF NOT EXISTS idx_leads_user ON leads(user_id);
 CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_activities_lead ON activities(lead_id);
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50);
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id UUID;
+
 CREATE INDEX IF NOT EXISTS idx_tasks_lead ON tasks(lead_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to);
 `;

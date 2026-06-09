@@ -9,6 +9,7 @@ import Pagination from "@/components/admin/Pagination";
 
 export default function ProviderServicesPage() {
   const [services, setServices] = useState<any[]>([]);
+  const [readiness, setReadiness] = useState<any[]>([]);
   const [pagination, setPagination] = useState<any>({ page: 1, limit: 20, total: 0, pages: 0 });
   const [filters, setFilters] = useState({ search: "", status: "" });
   const [loading, setLoading] = useState(true);
@@ -19,9 +20,13 @@ export default function ProviderServicesPage() {
       const params: any = { page: String(page), limit: "20" };
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
-      const res = await api.getProviderServices(params);
-      setServices(res.services);
-      setPagination(res.pagination);
+      const [svcRes, readRes] = await Promise.all([
+        api.getProviderServices(params),
+        api.getProviderReadiness().catch(() => ({ products: [], services: [] })),
+      ]);
+      setServices(svcRes.services);
+      setPagination(svcRes.pagination);
+      setReadiness(readRes.services);
     } catch { toast.error("Failed to load services"); }
     finally { setLoading(false); }
   }, [filters]);
@@ -34,6 +39,19 @@ export default function ProviderServicesPage() {
       toast.success("Status toggled");
       loadServices(pagination.page);
     } catch { toast.error("Failed to toggle"); }
+  };
+
+  const readinessMap = Object.fromEntries(readiness.map((r: any) => [r.id, r]));
+
+  const ReadinessBadge = ({ svc }: { svc: any }) => {
+    const info = readinessMap[svc.id];
+    if (!info) return null;
+    if (info.status === "ready") return <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Ready</span>;
+    if (info.status === "needs_work") {
+      const c = info.issues.filter((i: string) => i !== "Draft/private").length;
+      return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{c} issue{c > 1 ? "s" : ""}</span>;
+    }
+    return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Draft</span>;
   };
 
   return (
@@ -84,6 +102,7 @@ export default function ProviderServicesPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted">Pricing</th>
                 <th className="px-4 py-3 text-left font-medium text-muted">Starting Price</th>
                 <th className="px-4 py-3 text-left font-medium text-muted">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted">Readiness</th>
                 <th className="px-4 py-3 text-right font-medium text-muted">Actions</th>
               </tr>
             </thead>
@@ -97,7 +116,7 @@ export default function ProviderServicesPage() {
                   </tr>
                 ))
               ) : services.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted">No services found.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-muted">No services found.</td></tr>
               ) : (
                 services.map((s: any) => (
                   <tr key={s.id} className="border-b border-border/50 hover:bg-surface/30">
@@ -114,7 +133,13 @@ export default function ProviderServicesPage() {
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.is_active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                         {s.is_active ? "Active" : "Inactive"}
                       </span>
+                      {s.documents?.length > 0 && (
+                        <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600" title={`${s.documents.length} document${s.documents.length > 1 ? "s" : ""}`}>
+                          {s.documents.length} doc{s.documents.length > 1 ? "s" : ""}
+                        </span>
+                      )}
                     </td>
+                    <td className="px-4 py-3"><ReadinessBadge svc={s} /></td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button

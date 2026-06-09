@@ -253,7 +253,12 @@ router.get("/:slug", async (req: Request, res: Response) => {
   try {
     const result = await query(
       `SELECT p.*, cat.name as category_name, cat.slug as category_slug, cat.seo_title as category_seo_title, cat.seo_description as category_seo_description, cat.intro_text as category_intro_text,
-              comp.name as provider_name, comp.logo_url as provider_logo, comp.id as provider_company_id
+              comp.name as provider_name, comp.logo_url as provider_logo, comp.id as provider_company_id,
+              (SELECT COALESCE(json_agg(DISTINCT od.document_type), '[]'::json)
+               FROM offering_documents od
+               WHERE od.offering_type = 'PRODUCT' AND od.offering_id = p.id
+                 AND od.is_active = true AND od.is_public = true
+              ) as document_badges
        FROM products p
        LEFT JOIN categories cat ON p.category_id = cat.id
        LEFT JOIN companies comp ON p.provider_company_id = comp.id

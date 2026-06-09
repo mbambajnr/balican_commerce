@@ -37,6 +37,13 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
   next();
 }
 
+export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!req.userRole || req.userRole !== "super_admin") {
+    return res.status(403).json({ error: "Super admin access required" });
+  }
+  next();
+}
+
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userRole || !roles.includes(req.userRole)) {
@@ -61,21 +68,87 @@ export async function requireCompanyAdmin(req: AuthRequest, res: Response, next:
   }
 }
 
+const RESTRICTED_COMPANY_STATUSES = ["rejected", "suspended", "payment_suspended", "deactivated"];
+const VERIFICATION_REQUIRED_TYPES = ["supplier", "service_provider", "both_supplier_and_service_provider"];
+
 export async function requireCompanyActive(req: AuthRequest, res: Response, next: NextFunction) {
   try {
+    // Admins bypass all checks
+    if (req.userRole === "admin" || req.userRole === "super_admin") {
+      return next();
+    }
+
     const result = await query(
-      `SELECT u.account_status, c.status as company_status
+      `SELECT u.account_status, c.status as company_status,
+              c.verification_status, c.is_provider, c.company_type, c.id as company_id
        FROM users u LEFT JOIN companies c ON u.company_id = c.id WHERE u.id = $1`,
       [req.userId]
     );
-    if (result.rows.length > 0) {
-      const u = result.rows[0];
-      if (u.account_status !== "active" || (u.company_id && u.company_status !== "active")) {
-        return res.status(403).json({ error: "Company account is not active. Please wait for approval." });
-      }
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: "Account not found." });
     }
+
+    const u = result.rows[0];
+
+    // User-level status check
+    if (u.account_status !== "active") {
+      return res.status(403).json({ error: "Your account is not active. Please contact support.", code: "ACCOUNT_NOT_ACTIVE" });
+    }
+
+    // Company-level status check (if user has a company)
+    if (u.company_id) {
+      if (RESTRICTED_COMPANY_STATUSES.includes(u.company_status)) {
+        const messages: Record<string, string> = {
+          rejected: "Your company account has been rejected.",
+          suspended: "Your company account has been suspended. Please contact support.",
+          payment_suspended: "Your company account has a payment suspension. Please resolve outstanding payments.",
+          deactivated: "Your company account has been deactivated.",
+        };
+        return res.status(403).json({ error: messages[u.company_status] || "Company account is restricted.", code: `COMPANY_${u.company_status.toUpperCase()}` });
+      }
+
+      if (u.company_status === "pending") {
+        return res.status(403).json({ error: "Your company registration is pending approval.", code: "COMPANY_PENDING" });
+      }
+
+      // Provider verification check
+      const isProvider = u.is_provider || VERIFICATION_REQUIRED_TYPES.includes(u.company_type);
+      if (isProvider) {
+        if (u.verification_status === "rejected") {
+          return res.status(403).json({ error: "Your provider verification was rejected. Please contact support.", code: "VERIFICATION_REJECTED" });
+        }
+        if (u.verification_status !== "approved") {
+          return res.status(403).json({ error: "Provider verification is required before trading. Please complete verification.", code: "VERIFICATION_REQUIRED" });
+        }
+      }
+    } else {
+      return res.status(403).json({ error: "No company account found. Please register a company to use business features.", code: "NO_COMPANY" });
+    }
+
     next();
   } catch {
-    next();
+    return res.status(500).json({ error: "Authorization check failed. Please try again." });
   }
+}
+
+// Resolve full company context for a user — used by route handlers that need company info
+export interface CompanyContext {
+  companyId: string;
+  companyName: string;
+  status: string;
+  verificationStatus: string;
+  isProvider: boolean;
+  companyType: string;
+}
+
+export async function resolveCompanyContext(userId: string): Promise<CompanyContext | null> {
+  const result = await query(
+    `SELECT c.id as "companyId", c.name as "companyName", c.status,
+            c.verification_status as "verificationStatus", c.is_provider as "isProvider", c.company_type as "companyType"
+     FROM users u JOIN companies c ON u.company_id = c.id WHERE u.id = $1`,
+    [userId]
+  );
+  if (result.rows.length === 0) return null;
+  return result.rows[0];
 }

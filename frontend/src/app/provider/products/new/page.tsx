@@ -27,6 +27,13 @@ export default function NewProviderProductPage() {
     priceVisibility: "public",
     minimumOrderQuantity: "1",
     creditEligible: false,
+    brand: "",
+    model: "",
+    warrantyInformation: "",
+    deliveryCoverage: "",
+    creditTerms: "",
+    visibilityStatus: "public",
+    quoteOnly: false,
   });
 
   useEffect(() => {
@@ -99,6 +106,22 @@ export default function NewProviderProductPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-ink">Brand</label>
+            <input
+              type="text" value={form.brand}
+              onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Daikin, Carrier" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Model</label>
+            <input
+              type="text" value={form.model}
+              onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. FTX35GV1" />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-ink">Price (GH₵) *</label>
             <input
               type="number" min="0" step="0.01" value={form.price}
@@ -132,11 +155,31 @@ export default function NewProviderProductPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-ink">Visibility Status</label>
+            <select
+              value={form.visibilityStatus}
+              onChange={e => setForm(f => ({ ...f, visibilityStatus: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            >
+              <option value="public">Public</option>
+              <option value="approved_buyers_only">Approved Buyers Only</option>
+              <option value="quote_only">Quote Only</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-ink">Min. Order Quantity</label>
             <input
               type="number" min="1" value={form.minimumOrderQuantity}
               onChange={e => setForm(f => ({ ...f, minimumOrderQuantity: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Credit Terms</label>
+            <input
+              type="text" value={form.creditTerms}
+              onChange={e => setForm(f => ({ ...f, creditTerms: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Net 30" />
           </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -148,6 +191,35 @@ export default function NewProviderProductPage() {
               />
               <span className="text-sm text-ink">Eligible for credit purchase</span>
             </label>
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.quoteOnly}
+                onChange={e => setForm(f => ({ ...f, quoteOnly: e.target.checked }))}
+                className="rounded border-border text-accent focus:ring-accent"
+              />
+              <span className="text-sm text-ink">Quote Only</span>
+            </label>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-ink">Delivery Coverage</label>
+            <input
+              type="text" value={form.deliveryCoverage}
+              onChange={e => setForm(f => ({ ...f, deliveryCoverage: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Comma-separated regions, e.g. Accra, Kumasi, Tema" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-ink">Warranty Information</label>
+            <textarea
+              value={form.warrantyInformation}
+              onChange={e => setForm(f => ({ ...f, warrantyInformation: e.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Warranty terms, duration, and coverage details..."
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-ink">Description</label>

@@ -9,7 +9,8 @@ import toast from "react-hot-toast";
 import {
   ArrowRight, User, Envelope, Phone, LockKey,
   Building, Tag, MapPin, Globe, IdentificationBadge, Files,
-  Bank, CurrencyDollar, CaretDown, ClockCountdown, CheckCircle
+  Bank, CurrencyDollar, CaretDown, ClockCountdown, CheckCircle,
+  ShoppingCart, Toolbox, Handshake, ArrowsLeftRight
 } from "@phosphor-icons/react";
 
 const INDUSTRIES = [
@@ -56,7 +57,7 @@ const PAYMENT_TERMS_OPTIONS = [
 export default function RegisterPage() {
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", phone: "", password: "",
-    companyName: "", businessType: "", industry: "",
+    companyName: "", companyType: "buyer", businessType: "", industry: "",
     address: "", city: "", state: "",
     taxId: "", businessRegistrationNumber: "",
     contactPersonName: "", contactPersonEmail: "", contactPersonPhone: "",
@@ -148,6 +149,33 @@ export default function RegisterPage() {
                    <input value={form.companyName} onChange={(e) => update("companyName", e.target.value)} className="input pl-10" placeholder="Bali-Can Limited" />
                 </div>
                 {errors.companyName && <p className="input-error">{errors.companyName}</p>}
+              </div>
+
+              {/* ── Company Type ── */}
+              <div>
+                <label className="input-label mb-2">Account Type <span className="text-red-500">*</span></label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: "buyer", label: "Buyer", icon: ShoppingCart, desc: "Purchase products & request quotes" },
+                    { value: "supplier", label: "Supplier", icon: Toolbox, desc: "Sell products to buyers" },
+                    { value: "service_provider", label: "Service Provider", icon: Handshake, desc: "Offer installation & services" },
+                    { value: "both", label: "Both", icon: ArrowsLeftRight, desc: "Buy & sell on the platform" },
+                  ].map((opt) => (
+                    <button key={opt.value} type="button" onClick={() => update("companyType", opt.value)}
+                      className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-all ${
+                        form.companyType === opt.value
+                          ? "border-accent bg-accent/5 ring-1 ring-accent"
+                          : "border-border bg-white hover:border-accent/40"
+                      }`}>
+                      <opt.icon size={20} weight={form.companyType === opt.value ? "fill" : "regular"}
+                        className={`mt-0.5 shrink-0 ${form.companyType === opt.value ? "text-accent" : "text-muted"}`} />
+                      <div>
+                        <p className="text-sm font-semibold text-ink">{opt.label}</p>
+                        <p className="text-xs text-muted">{opt.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

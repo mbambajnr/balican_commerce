@@ -30,6 +30,13 @@ export default function EditProviderProductPage() {
     minimumOrderQuantity: "1",
     creditEligible: false,
     isActive: true,
+    brand: "",
+    model: "",
+    warrantyInformation: "",
+    deliveryCoverage: "",
+    creditTerms: "",
+    visibilityStatus: "public",
+    quoteOnly: false,
   });
 
   const productId = params.id as string;
@@ -52,6 +59,13 @@ export default function EditProviderProductPage() {
         minimumOrderQuantity: String(p.minimum_order_quantity || 1),
         creditEligible: p.credit_eligible || false,
         isActive: p.is_active !== false,
+        brand: p.brand || "",
+        model: p.model || "",
+        warrantyInformation: p.warranty_information || "",
+        deliveryCoverage: Array.isArray(p.delivery_coverage) ? p.delivery_coverage.join(", ") : (p.delivery_coverage || ""),
+        creditTerms: p.credit_terms || "",
+        visibilityStatus: p.visibility_status || "public",
+        quoteOnly: p.quote_only || false,
       });
     }).catch(() => toast.error("Failed to load product"))
     .finally(() => setLoading(false));
@@ -66,6 +80,9 @@ export default function EditProviderProductPage() {
         ...form,
         price: form.price ? parseFloat(form.price) : undefined,
         minimumOrderQuantity: parseInt(form.minimumOrderQuantity) || 1,
+        deliveryCoverage: form.deliveryCoverage
+          ? form.deliveryCoverage.split(",").map(s => s.trim()).filter(Boolean)
+          : [],
       });
       toast.success("Product updated");
       router.push("/provider/products");
@@ -125,6 +142,20 @@ export default function EditProviderProductPage() {
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent" />
           </div>
           <div>
+            <label className="block text-sm font-medium text-ink">Brand</label>
+            <input type="text" value={form.brand}
+              onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Carrier, LG, Mitsubishi" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Model</label>
+            <input type="text" value={form.model}
+              onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. XR-5000" />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-ink">Stock Status</label>
             <select value={form.stockStatus} onChange={e => setForm(f => ({ ...f, stockStatus: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent">
@@ -144,10 +175,33 @@ export default function EditProviderProductPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-ink">Visibility Status</label>
+            <select value={form.visibilityStatus} onChange={e => setForm(f => ({ ...f, visibilityStatus: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent">
+              <option value="public">Public</option>
+              <option value="approved_buyers_only">Approved Buyers Only</option>
+              <option value="quote_only">Quote Only</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-ink">Min. Order Qty</label>
             <input type="number" min="1" value={form.minimumOrderQuantity}
               onChange={e => setForm(f => ({ ...f, minimumOrderQuantity: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Delivery Coverage</label>
+            <input type="text" value={form.deliveryCoverage}
+              onChange={e => setForm(f => ({ ...f, deliveryCoverage: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Accra, Kumasi, Takoradi" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Credit Terms</label>
+            <input type="text" value={form.creditTerms}
+              onChange={e => setForm(f => ({ ...f, creditTerms: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Net 30" />
           </div>
           <div className="flex items-end gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -162,6 +216,12 @@ export default function EditProviderProductPage() {
                 className="rounded border-border text-accent focus:ring-accent" />
               <span className="text-sm text-ink">Active</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.quoteOnly}
+                onChange={e => setForm(f => ({ ...f, quoteOnly: e.target.checked }))}
+                className="rounded border-border text-accent focus:ring-accent" />
+              <span className="text-sm text-ink">Quote only</span>
+            </label>
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-ink">Description</label>
@@ -169,6 +229,14 @@ export default function EditProviderProductPage() {
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               rows={4}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-ink">Warranty Information</label>
+            <textarea value={form.warrantyInformation}
+              onChange={e => setForm(f => ({ ...f, warrantyInformation: e.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. 2-year manufacturer warranty on parts and labor" />
           </div>
         </div>
 

@@ -20,6 +20,7 @@ declare module "next-auth" {
       company_name: string | null;
       company_status: string | null;
       is_provider: boolean;
+      verification_status: string | null;
     };
     token: string;
   }
@@ -38,6 +39,7 @@ declare module "next-auth" {
     company_name: string | null;
     company_status: string | null;
     is_provider: boolean;
+    verification_status: string | null;
     token: string;
   }
 }
@@ -58,6 +60,7 @@ declare module "next-auth/jwt" {
     company_name: string | null;
     company_status: string | null;
     is_provider: boolean;
+    verification_status: string | null;
     token: string;
   }
 }

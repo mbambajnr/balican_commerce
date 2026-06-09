@@ -29,6 +29,15 @@ export default function EditProviderServicePage() {
     startingPrice: "", priceVisibility: "public",
     minimumJobValue: "", estimatedResponseTime: "",
     creditEligible: false, isActive: true,
+    contractType: "",
+    teamSizeOrCapacity: "",
+    industriesServed: "",
+    certificationsOrLicenses: "",
+    equipmentOrToolsAvailable: "",
+    experienceSummary: "",
+    coverageArea: "",
+    visibilityStatus: "public",
+    quoteOnly: false,
   });
 
   const serviceId = params.id as string;
@@ -36,7 +45,7 @@ export default function EditProviderServicePage() {
   useEffect(() => {
     Promise.all([
       api.adminGetCategoryTree(),
-      api.get(`/marketplace/services/${serviceId}`).catch(() => api.get(`/marketplace/services/slug/${serviceId}`)),
+      api.getProviderService(serviceId),
     ]).then(([catRes, servRes]: [any, any]) => {
       setCategories(catRes.categories);
       const s = servRes.service || servRes;
@@ -53,6 +62,15 @@ export default function EditProviderServicePage() {
         estimatedResponseTime: s.estimated_response_time || "",
         creditEligible: s.credit_eligible || false,
         isActive: s.is_active !== false,
+        contractType: s.contract_type || "",
+        teamSizeOrCapacity: s.team_size_or_capacity || "",
+        industriesServed: Array.isArray(s.industries_served) ? s.industries_served.join(", ") : "",
+        certificationsOrLicenses: Array.isArray(s.certifications_or_licenses) ? s.certifications_or_licenses.join(", ") : "",
+        equipmentOrToolsAvailable: Array.isArray(s.equipment_or_tools_available) ? s.equipment_or_tools_available.join(", ") : "",
+        experienceSummary: s.experience_summary || "",
+        coverageArea: Array.isArray(s.coverage_area) ? s.coverage_area.join(", ") : "",
+        visibilityStatus: s.visibility_status || "public",
+        quoteOnly: s.quote_only || false,
       });
     }).catch(() => toast.error("Failed to load service"))
     .finally(() => setLoading(false));
@@ -65,7 +83,11 @@ export default function EditProviderServicePage() {
     try {
       await api.updateProviderService(serviceId, {
         ...form,
-        serviceAreas: form.serviceAreas ? form.serviceAreas.split(",").map((s: string) => s.trim()) : [],
+        serviceAreas: form.serviceAreas ? form.serviceAreas.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        industriesServed: form.industriesServed ? form.industriesServed.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        certificationsOrLicenses: form.certificationsOrLicenses ? form.certificationsOrLicenses.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        equipmentOrToolsAvailable: form.equipmentOrToolsAvailable ? form.equipmentOrToolsAvailable.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        coverageArea: form.coverageArea ? form.coverageArea.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
         startingPrice: form.startingPrice ? parseFloat(form.startingPrice) : null,
         minimumJobValue: form.minimumJobValue ? parseFloat(form.minimumJobValue) : null,
       });
@@ -163,7 +185,34 @@ export default function EditProviderServicePage() {
               onChange={e => setForm(f => ({ ...f, minimumJobValue: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent" />
           </div>
-          <div className="flex items-end gap-4">
+          <div>
+            <label className="block text-sm font-medium text-ink">Contract Type</label>
+            <select value={form.contractType} onChange={e => setForm(f => ({ ...f, contractType: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent">
+              <option value="">Select contract type</option>
+              <option value="ONE_TIME">One Time</option>
+              <option value="RECURRING">Recurring</option>
+              <option value="EMERGENCY">Emergency</option>
+              <option value="RETAINER">Retainer</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Team Size / Capacity</label>
+            <input type="text" value={form.teamSizeOrCapacity}
+              onChange={e => setForm(f => ({ ...f, teamSizeOrCapacity: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. 5 technicians, 3 crews" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Visibility Status</label>
+            <select value={form.visibilityStatus} onChange={e => setForm(f => ({ ...f, visibilityStatus: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent">
+              <option value="public">Public</option>
+              <option value="approved_buyers_only">Approved Buyers Only</option>
+              <option value="quote_only">Quote Only</option>
+            </select>
+          </div>
+          <div className="flex items-end gap-4 flex-wrap">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.creditEligible}
                 onChange={e => setForm(f => ({ ...f, creditEligible: e.target.checked }))}
@@ -176,13 +225,55 @@ export default function EditProviderServicePage() {
                 className="rounded border-border text-accent focus:ring-accent" />
               <span className="text-sm text-ink">Active</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.quoteOnly}
+                onChange={e => setForm(f => ({ ...f, quoteOnly: e.target.checked }))}
+                className="rounded border-border text-accent focus:ring-accent" />
+              <span className="text-sm text-ink">Quote only</span>
+            </label>
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink">Service Areas</label>
+            <label className="block text-sm font-medium text-ink">Service Areas (comma separated)</label>
             <input type="text" value={form.serviceAreas}
               onChange={e => setForm(f => ({ ...f, serviceAreas: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               placeholder="Accra, Tema, Kumasi" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Coverage Area (comma separated)</label>
+            <input type="text" value={form.coverageArea}
+              onChange={e => setForm(f => ({ ...f, coverageArea: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Greater Accra, Ashanti, Western" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Industries Served (comma separated)</label>
+            <input type="text" value={form.industriesServed}
+              onChange={e => setForm(f => ({ ...f, industriesServed: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Commercial, Industrial, Residential" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Certifications / Licenses (comma separated)</label>
+            <input type="text" value={form.certificationsOrLicenses}
+              onChange={e => setForm(f => ({ ...f, certificationsOrLicenses: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="ISO 9001, Ghana Standards Authority" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-ink">Equipment / Tools Available (comma separated)</label>
+            <input type="text" value={form.equipmentOrToolsAvailable}
+              onChange={e => setForm(f => ({ ...f, equipmentOrToolsAvailable: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Crane trucks, welding equipment, diagnostic tools" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-ink">Experience Summary</label>
+            <textarea value={form.experienceSummary}
+              onChange={e => setForm(f => ({ ...f, experienceSummary: e.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Brief summary of your experience in this service area..." />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-ink">Description</label>

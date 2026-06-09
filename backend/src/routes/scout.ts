@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import { query } from "../config/db";
-import { authenticate, AuthRequest } from "../middleware/auth";
+import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 
 const router = Router();
@@ -76,6 +76,7 @@ const submitQuoteSchema = z.object({
 router.post(
   "/scout/requests",
   authenticate,
+  requireCompanyActive,
   validate(createRequestSchema),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -113,7 +114,7 @@ router.post(
 );
 
 /* GET /scout/requests — list customer's own Scout requests */
-router.get("/scout/requests", authenticate, async (req: AuthRequest, res: Response) => {
+router.get("/scout/requests", authenticate, requireCompanyActive, async (req: AuthRequest, res: Response) => {
   try {
     const companyId = await resolveCompany(req, res);
     if (!companyId) return;
@@ -157,7 +158,7 @@ router.get("/scout/requests", authenticate, async (req: AuthRequest, res: Respon
 });
 
 /* GET /scout/requests/:id — customer: request + all quotes */
-router.get("/scout/requests/:id", authenticate, async (req: AuthRequest, res: Response) => {
+router.get("/scout/requests/:id", authenticate, requireCompanyActive, async (req: AuthRequest, res: Response) => {
   try {
     const companyId = await resolveCompany(req, res);
     if (!companyId) return;
@@ -171,9 +172,11 @@ router.get("/scout/requests/:id", authenticate, async (req: AuthRequest, res: Re
     const quotesResult = await query(
       `SELECT sq.*,
               c.name as provider_name, c.logo_url as provider_logo,
-              c.city as provider_city, c.verification_status as provider_verification
+              c.city as provider_city, c.verification_status as provider_verification,
+              sa.id as agreement_id
        FROM scout_quotes sq
        JOIN companies c ON c.id = sq.provider_company_id
+       LEFT JOIN scout_agreements sa ON sa.accepted_quote_id = sq.id
        WHERE sq.request_id = $1
        ORDER BY sq.quoted_price ASC, sq.created_at ASC`,
       [req.params.id]
@@ -216,6 +219,7 @@ router.patch("/scout/requests/:id/cancel", authenticate, async (req: AuthRequest
 router.post(
   "/scout/requests/:id/accept-quote/:quoteId",
   authenticate,
+  requireCompanyActive,
   async (req: AuthRequest, res: Response) => {
     try {
       const companyId = await resolveCompany(req, res);
@@ -422,6 +426,7 @@ router.get("/scout/requests/:id/my-quote", authenticate, async (req: AuthRequest
 router.post(
   "/scout/requests/:id/quote",
   authenticate,
+  requireCompanyActive,
   validate(submitQuoteSchema),
   async (req: AuthRequest, res: Response) => {
     try {

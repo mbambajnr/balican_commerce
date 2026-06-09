@@ -27,6 +27,15 @@ export default function NewProviderServicePage() {
     startingPrice: "", priceVisibility: "public",
     minimumJobValue: "", estimatedResponseTime: "",
     creditEligible: false,
+    contractType: "",
+    teamSizeOrCapacity: "",
+    industriesServed: "",
+    certificationsOrLicenses: "",
+    equipmentOrToolsAvailable: "",
+    experienceSummary: "",
+    coverageArea: "",
+    visibilityStatus: "public",
+    quoteOnly: false,
   });
 
   useEffect(() => {
@@ -41,6 +50,10 @@ export default function NewProviderServicePage() {
       await api.createProviderService({
         ...form,
         serviceAreas: form.serviceAreas ? form.serviceAreas.split(",").map((s: string) => s.trim()) : [],
+        coverageArea: form.coverageArea ? form.coverageArea.split(",").map((s: string) => s.trim()) : [],
+        industriesServed: form.industriesServed ? form.industriesServed.split(",").map((s: string) => s.trim()) : [],
+        certificationsOrLicenses: form.certificationsOrLicenses ? form.certificationsOrLicenses.split(",").map((s: string) => s.trim()) : [],
+        equipmentOrToolsAvailable: form.equipmentOrToolsAvailable ? form.equipmentOrToolsAvailable.split(",").map((s: string) => s.trim()) : [],
         startingPrice: form.startingPrice ? parseFloat(form.startingPrice) : null,
         minimumJobValue: form.minimumJobValue ? parseFloat(form.minimumJobValue) : null,
       });
@@ -63,7 +76,7 @@ export default function NewProviderServicePage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-ink">New Service</h1>
-          <p className="mt-1 text-sm text-muted">Add a service to your offerings</p>
+          <p className="mt-1 text-sm text-muted">Add a service capability to your offerings</p>
         </div>
       </div>
 
@@ -96,6 +109,17 @@ export default function NewProviderServicePage() {
               <option value="consulting">Consulting</option>
               <option value="contract">Contract</option>
               <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Contract Type</label>
+            <select value={form.contractType} onChange={e => setForm(f => ({ ...f, contractType: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent">
+              <option value="">Select contract type</option>
+              <option value="ONE_TIME">One Time</option>
+              <option value="RECURRING">Recurring</option>
+              <option value="EMERGENCY">Emergency</option>
+              <option value="RETAINER">Retainer</option>
             </select>
           </div>
           <div>
@@ -137,19 +161,77 @@ export default function NewProviderServicePage() {
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent" />
           </div>
           <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.creditEligible}
-                onChange={e => setForm(f => ({ ...f, creditEligible: e.target.checked }))}
-                className="rounded border-border text-accent focus:ring-accent" />
-              <span className="text-sm text-ink">Eligible for credit</span>
-            </label>
+            <label className="block text-sm font-medium text-ink">Team Size / Capacity</label>
+            <input type="text" value={form.teamSizeOrCapacity}
+              onChange={e => setForm(f => ({ ...f, teamSizeOrCapacity: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. 5-10 technicians" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink">Service Areas (comma separated)</label>
+            <label className="block text-sm font-medium text-ink">Industries Served</label>
+            <input type="text" value={form.industriesServed}
+              onChange={e => setForm(f => ({ ...f, industriesServed: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Commercial, Residential, Industrial" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Certifications / Licenses</label>
+            <input type="text" value={form.certificationsOrLicenses}
+              onChange={e => setForm(f => ({ ...f, certificationsOrLicenses: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. GISED, HVAC Certified, EPA" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Equipment / Tools Available</label>
+            <input type="text" value={form.equipmentOrToolsAvailable}
+              onChange={e => setForm(f => ({ ...f, equipmentOrToolsAvailable: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="e.g. Crane trucks, diagnostic tools" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Coverage Area</label>
+            <input type="text" value={form.coverageArea}
+              onChange={e => setForm(f => ({ ...f, coverageArea: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Accra, Tema, Kumasi" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Service Areas (legacy)</label>
             <input type="text" value={form.serviceAreas}
               onChange={e => setForm(f => ({ ...f, serviceAreas: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               placeholder="Accra, Tema, Kumasi" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink">Visibility</label>
+            <select value={form.visibilityStatus} onChange={e => setForm(f => ({ ...f, visibilityStatus: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent">
+              <option value="public">Public</option>
+              <option value="approved_buyers_only">Approved Buyers Only</option>
+              <option value="quote_only">Quote Only</option>
+            </select>
+          </div>
+          <div className="flex items-end gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.creditEligible}
+                onChange={e => setForm(f => ({ ...f, creditEligible: e.target.checked }))}
+                className="rounded border-border text-accent focus:ring-accent" />
+              <span className="text-sm text-ink">Credit eligible</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.quoteOnly}
+                onChange={e => setForm(f => ({ ...f, quoteOnly: e.target.checked }))}
+                className="rounded border-border text-accent focus:ring-accent" />
+              <span className="text-sm text-ink">Quote only</span>
+            </label>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-ink">Experience Summary</label>
+            <textarea value={form.experienceSummary}
+              onChange={e => setForm(f => ({ ...f, experienceSummary: e.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              placeholder="Describe your team's experience in this service area..." />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-ink">Description</label>

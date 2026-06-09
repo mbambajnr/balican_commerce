@@ -86,6 +86,12 @@ export function getPrivateDocumentPath(storageKey: string): string {
   return path.resolve(config.upload.dir, "private", storageKey);
 }
 
+export function getPrivateDocumentStream(storageKey: string): fs.ReadStream | null {
+  const fullPath = getPrivateDocumentPath(storageKey);
+  if (!fs.existsSync(fullPath)) return null;
+  return fs.createReadStream(fullPath);
+}
+
 class LocalStorageDriver implements StorageDriver {
   private uploadDir: string;
   private publicBaseUrl: string;

@@ -24,7 +24,16 @@ export default function LoginPage() {
     try {
       const user = await login(email, password);
       toast.success("Welcome back");
-      router.push(user?.role === "admin" || user?.role === "super_admin" ? "/admin" : "/products");
+      // Route based on role and verification needs
+      if (user?.role === "super_admin") {
+        router.push("/super-admin");
+      } else if (user?.role === "admin") {
+        router.push("/admin");
+      } else if ((user as any)?.is_provider && ["pending", "not_started", "required", "changes_requested"].includes((user as any)?.verification_status)) {
+        router.push("/provider/verification");
+      } else {
+        router.push((user as any)?.is_provider ? "/provider" : "/products");
+      }
     } catch (err: any) {
       toast.error(err.message || "Login failed");
     } finally {

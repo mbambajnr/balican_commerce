@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import { query } from "../config/db";
-import { authenticate, requireAdmin, AuthRequest } from "../middleware/auth";
+import { authenticate, requireAdmin, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { logProcurementActivity } from "../services/procurement-activity";
 
 const router = Router();
@@ -78,7 +78,7 @@ router.get("/procurement/providers", authenticate, async (req: AuthRequest, res:
 });
 
 /* ── Create procurement request ── */
-router.post("/procurement/requests", authenticate, async (req: AuthRequest, res: Response) => {
+router.post("/procurement/requests", authenticate, requireCompanyActive, async (req: AuthRequest, res: Response) => {
   try {
     const companyId = await resolveUserCompany(req, res);
     if (!companyId) return;
@@ -627,6 +627,7 @@ const acceptProviderSchema = z.object({
 router.post(
   "/procurement/requests/:requestId/accept-provider/:providerCompanyId",
   authenticate,
+  requireCompanyActive,
   async (req: AuthRequest, res: Response) => {
     try {
       const companyId = await resolveUserCompany(req, res);

@@ -1037,7 +1037,7 @@ const lifecycleSchema = z.object({
   note: z.string().max(1000).optional(),
 });
 
-router.patch("/:id/lifecycle", authenticate, validate(lifecycleSchema), async (req: AuthRequest, res: Response) => {
+router.patch("/:id/lifecycle", authenticate, requireCompanyActive, validate(lifecycleSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { action, note } = req.body;
 

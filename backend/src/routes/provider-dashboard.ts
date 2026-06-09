@@ -8,7 +8,20 @@ const router = Router();
 /** Allowed roles for mutating catalog (create/update/toggle/inventory/availability). */
 const MUTATE_ROLES = new Set(["company_admin"]);
 
-async function resolveProviderCompany(req: AuthRequest, res: Response): Promise<{ companyId: string; role: string } | null> {
+async function resolveProviderCompany(req: AuthRequest, res: Response, requireVerified = true): Promise<{ companyId: string; role: string } | null> {
+  // Super admins bypass all provider checks
+  if (req.userRole === "super_admin") {
+    const userResult = await query(
+      "SELECT company_id, company_role FROM users WHERE id = $1",
+      [req.userId]
+    );
+    if (!userResult.rows[0]?.company_id) {
+      res.status(403).json({ error: "No company" });
+      return null;
+    }
+    return { companyId: userResult.rows[0].company_id, role: userResult.rows[0].company_role || "company_admin" };
+  }
+
   const userResult = await query(
     "SELECT company_id, company_role, account_status FROM users WHERE id = $1",
     [req.userId]
@@ -36,7 +49,7 @@ async function resolveProviderCompany(req: AuthRequest, res: Response): Promise<
     res.status(403).json({ error: "Company not active" });
     return null;
   }
-  if (company.verification_status !== "approved") {
+  if (requireVerified && company.verification_status !== "approved") {
     res.status(403).json({ error: "Provider not yet verified" });
     return null;
   }
@@ -54,7 +67,7 @@ function requireMutateRole(role: string, res: Response): boolean {
 /* ── Dashboard overview ── */
 router.get("/provider/dashboard", authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const ctx = await resolveProviderCompany(req, res);
+    const ctx = await resolveProviderCompany(req, res, false);
     if (!ctx) return;
 
     const [productCount, serviceCount, recentProducts, recentServices] = await Promise.all([
@@ -162,7 +175,11 @@ router.get("/provider/products", authenticate, async (req: AuthRequest, res: Res
     const total = parseInt(countResult.rows[0].count);
 
     const result = await query(
-      `SELECT p.*, c.name as category_name
+      `SELECT p.*, c.name as category_name,
+              (SELECT COALESCE(json_agg(json_build_object('id', od.id, 'document_type', od.document_type, 'file_name', od.file_name, 'created_at', od.created_at)), '[]'::json)
+               FROM offering_documents od
+               WHERE od.offering_type = 'PRODUCT' AND od.offering_id = p.id AND od.is_active = true
+              ) as documents
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        ${where}
@@ -188,7 +205,7 @@ router.post("/provider/products", authenticate, async (req: AuthRequest, res: Re
     if (!ctx) return;
     if (!requireMutateRole(ctx.role, res)) return;
 
-    const { name, description, categoryId, price, sku, stockStatus, priceVisibility, minimumOrderQuantity, creditEligible, images } = req.body;
+    const { name, description, categoryId, price, sku, stockStatus, priceVisibility, minimumOrderQuantity, creditEligible, images, brand, model, warrantyInformation, deliveryCoverage, creditTerms, visibilityStatus, quoteOnly } = req.body;
 
     if (!name) return res.status(400).json({ error: "Product name is required" });
     if (price == null) return res.status(400).json({ error: "Price is required" });
@@ -198,11 +215,14 @@ router.post("/provider/products", authenticate, async (req: AuthRequest, res: Re
 
     const result = await query(
       `INSERT INTO products (name, slug, description, category_id, price, sku, stock_status,
-        is_active, provider_company_id, price_visibility, minimum_order_quantity, credit_eligible, images)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10, $11, $12)
+        is_active, provider_company_id, price_visibility, minimum_order_quantity, credit_eligible, images,
+        brand, model, warranty_information, delivery_coverage, credit_terms, visibility_status, quote_only)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        RETURNING *`,
       [name, slug, description || null, categoryId || null, price, productSku, stockStatus || "in_stock",
-       ctx.companyId, priceVisibility || "public", minimumOrderQuantity || 1, creditEligible || false, images || null]
+       ctx.companyId, priceVisibility || "public", minimumOrderQuantity || 1, creditEligible || false, images || null,
+       brand || null, model || null, warrantyInformation || null, deliveryCoverage || null,
+       creditTerms || null, visibilityStatus || "public", quoteOnly ?? false]
     );
 
     res.status(201).json({ product: result.rows[0] });
@@ -225,7 +245,7 @@ router.put("/provider/products/:id", authenticate, async (req: AuthRequest, res:
     );
     if (existing.rows.length === 0) return res.status(404).json({ error: "Product not found" });
 
-    const { name, description, categoryId, price, sku, stockStatus, priceVisibility, minimumOrderQuantity, creditEligible, isActive, images } = req.body;
+    const { name, description, categoryId, price, sku, stockStatus, priceVisibility, minimumOrderQuantity, creditEligible, isActive, images, brand, model, warrantyInformation, deliveryCoverage, creditTerms, visibilityStatus, quoteOnly } = req.body;
 
     const result = await query(
       `UPDATE products SET
@@ -240,14 +260,24 @@ router.put("/provider/products/:id", authenticate, async (req: AuthRequest, res:
         credit_eligible = COALESCE($9, credit_eligible),
         is_active = COALESCE($10, is_active),
         images = COALESCE($11, images),
+        brand = COALESCE($12, brand),
+        model = COALESCE($13, model),
+        warranty_information = COALESCE($14, warranty_information),
+        delivery_coverage = COALESCE($15, delivery_coverage),
+        credit_terms = COALESCE($16, credit_terms),
+        visibility_status = COALESCE($17, visibility_status),
+        quote_only = COALESCE($18, quote_only),
         updated_at = NOW()
-       WHERE id = $12 AND provider_company_id = $13
+       WHERE id = $19 AND provider_company_id = $20
        RETURNING *`,
       [name || null, description !== undefined ? description : null, categoryId || null,
        price !== undefined ? price : null, sku || null, stockStatus || null,
        priceVisibility || null, minimumOrderQuantity !== undefined ? minimumOrderQuantity : null,
        creditEligible !== undefined ? creditEligible : null,
        isActive !== undefined ? isActive : null, images !== undefined ? images : null,
+       brand || null, model || null, warrantyInformation || null,
+       deliveryCoverage || null, creditTerms || null,
+       visibilityStatus || null, quoteOnly !== undefined ? quoteOnly : null,
        req.params.id, ctx.companyId]
     );
 
@@ -332,7 +362,11 @@ router.get("/provider/services", authenticate, async (req: AuthRequest, res: Res
     const total = parseInt(countResult.rows[0].count);
 
     const result = await query(
-      `SELECT s.*, cat.name as category_name
+      `SELECT s.*, cat.name as category_name,
+              (SELECT COALESCE(json_agg(json_build_object('id', od.id, 'document_type', od.document_type, 'file_name', od.file_name, 'created_at', od.created_at)), '[]'::json)
+               FROM offering_documents od
+               WHERE od.offering_type = 'SERVICE' AND od.offering_id = s.id AND od.is_active = true
+              ) as documents
        FROM services s
        LEFT JOIN categories cat ON s.category_id = cat.id
        ${where}
@@ -351,6 +385,29 @@ router.get("/provider/services", authenticate, async (req: AuthRequest, res: Res
   }
 });
 
+/* ── Get single service ── */
+router.get("/provider/services/:id", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const ctx = await resolveProviderCompany(req, res);
+    if (!ctx) return;
+
+    const result = await query(
+      `SELECT s.*, cat.name as category_name
+       FROM services s
+       LEFT JOIN categories cat ON s.category_id = cat.id
+       WHERE s.id = $1 AND s.provider_company_id = $2`,
+      [req.params.id, ctx.companyId]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: "Service not found" });
+
+    res.json({ service: result.rows[0] });
+  } catch (err) {
+    console.error("Provider get service error:", err);
+    res.status(500).json({ error: "Failed to load service" });
+  }
+});
+
 /* ── Create service ── */
 router.post("/provider/services", authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -358,7 +415,7 @@ router.post("/provider/services", authenticate, async (req: AuthRequest, res: Re
     if (!ctx) return;
     if (!requireMutateRole(ctx.role, res)) return;
 
-    const { name, description, categoryId, serviceType, serviceAreas, pricingModel, startingPrice, priceVisibility, minimumJobValue, estimatedResponseTime, creditEligible, images } = req.body;
+    const { name, description, categoryId, serviceType, serviceAreas, pricingModel, startingPrice, priceVisibility, minimumJobValue, estimatedResponseTime, creditEligible, images, coverageArea, contractType, teamSizeOrCapacity, industriesServed, certificationsOrLicenses, equipmentOrToolsAvailable, experienceSummary, visibilityStatus, quoteOnly } = req.body;
 
     if (!name) return res.status(400).json({ error: "Service name is required" });
 
@@ -367,14 +424,22 @@ router.post("/provider/services", authenticate, async (req: AuthRequest, res: Re
     const result = await query(
       `INSERT INTO services (provider_company_id, name, slug, description, category_id,
         service_type, service_areas, pricing_model, starting_price, price_visibility,
-        minimum_job_value, estimated_response_time, credit_eligible, is_active, images)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true, $14)
+        minimum_job_value, estimated_response_time, credit_eligible, is_active, images,
+        coverage_area, contract_type, team_size_or_capacity, industries_served,
+        certifications_or_licenses, equipment_or_tools_available, experience_summary,
+        visibility_status, quote_only)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true, $14,
+        $15, $16, $17, $18, $19, $20, $21, $22, $23)
        RETURNING *`,
       [ctx.companyId, name, slug, description || null, categoryId || null,
        serviceType || null, serviceAreas || null, pricingModel || "quote_only",
        startingPrice || null, priceVisibility || "public",
        minimumJobValue || null, estimatedResponseTime || null,
-       creditEligible || false, images || null]
+       creditEligible || false, images || null,
+       coverageArea || null, contractType || null, teamSizeOrCapacity || null,
+       industriesServed || null, certificationsOrLicenses || null,
+       equipmentOrToolsAvailable || null, experienceSummary || null,
+       visibilityStatus || "public", quoteOnly ?? false]
     );
 
     res.status(201).json({ service: result.rows[0] });
@@ -397,7 +462,7 @@ router.put("/provider/services/:id", authenticate, async (req: AuthRequest, res:
     );
     if (existing.rows.length === 0) return res.status(404).json({ error: "Service not found" });
 
-    const { name, description, categoryId, serviceType, serviceAreas, pricingModel, startingPrice, priceVisibility, minimumJobValue, estimatedResponseTime, creditEligible, isActive, images } = req.body;
+    const { name, description, categoryId, serviceType, serviceAreas, pricingModel, startingPrice, priceVisibility, minimumJobValue, estimatedResponseTime, creditEligible, isActive, images, coverageArea, contractType, teamSizeOrCapacity, industriesServed, certificationsOrLicenses, equipmentOrToolsAvailable, experienceSummary, visibilityStatus, quoteOnly } = req.body;
 
     const result = await query(
       `UPDATE services SET
@@ -414,8 +479,17 @@ router.put("/provider/services/:id", authenticate, async (req: AuthRequest, res:
         credit_eligible = COALESCE($11, credit_eligible),
         is_active = COALESCE($12, is_active),
         images = COALESCE($13, images),
+        coverage_area = COALESCE($14, coverage_area),
+        contract_type = COALESCE($15, contract_type),
+        team_size_or_capacity = COALESCE($16, team_size_or_capacity),
+        industries_served = COALESCE($17, industries_served),
+        certifications_or_licenses = COALESCE($18, certifications_or_licenses),
+        equipment_or_tools_available = COALESCE($19, equipment_or_tools_available),
+        experience_summary = COALESCE($20, experience_summary),
+        visibility_status = COALESCE($21, visibility_status),
+        quote_only = COALESCE($22, quote_only),
         updated_at = NOW()
-       WHERE id = $14 AND provider_company_id = $15
+       WHERE id = $23 AND provider_company_id = $24
        RETURNING *`,
       [name || null, description !== undefined ? description : null, categoryId || null,
        serviceType || null, serviceAreas || null, pricingModel || null,
@@ -423,6 +497,10 @@ router.put("/provider/services/:id", authenticate, async (req: AuthRequest, res:
        minimumJobValue !== undefined ? minimumJobValue : null, estimatedResponseTime || null,
        creditEligible !== undefined ? creditEligible : null,
        isActive !== undefined ? isActive : null, images !== undefined ? images : null,
+       coverageArea || null, contractType || null, teamSizeOrCapacity || null,
+       industriesServed || null, certificationsOrLicenses || null,
+       equipmentOrToolsAvailable || null, experienceSummary || null,
+       visibilityStatus || null, quoteOnly !== undefined ? quoteOnly : null,
        req.params.id, ctx.companyId]
     );
 
@@ -497,4 +575,62 @@ router.get("/provider/supplier-score", authenticate, async (req: AuthRequest, re
   }
 });
 
+/* ── Marketplace readiness check ── */
+router.get("/provider/readiness", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const ctx = await resolveProviderCompany(req, res);
+    if (!ctx) return;
+
+    type ReadinessItem = { id: string; name: string; offeringType: "PRODUCT" | "SERVICE"; issues: string[]; status: "ready" | "needs_work" | "draft" };
+
+    const products = await query(
+      `SELECT p.id, p.name, p.is_active, p.category_id, p.description, p.price, p.images, p.brand, p.model,
+              p.delivery_coverage, p.warranty_information, p.credit_terms, p.stock_status, p.visibility_status,
+              (SELECT COUNT(*)::int FROM offering_documents od WHERE od.offering_type = 'PRODUCT' AND od.offering_id = p.id AND od.is_active = true)
+       FROM products p WHERE p.provider_company_id = $1`,
+      [ctx.companyId]
+    );
+
+    const services = await query(
+      `SELECT s.id, s.name, s.is_active, s.category_id, s.description, s.starting_price, s.images,
+              s.coverage_area, s.estimated_response_time, s.visibility_status, s.contract_type,
+              s.certifications_or_licenses, s.industries_served, s.experience_summary,
+              (SELECT COUNT(*)::int FROM offering_documents od WHERE od.offering_type = 'SERVICE' AND od.offering_id = s.id AND od.is_active = true)
+       FROM services s WHERE s.provider_company_id = $1`,
+      [ctx.companyId]
+    );
+
+    const evaluate = (row: any, type: "PRODUCT" | "SERVICE"): ReadinessItem => {
+      const issues: string[] = [];
+      if (!row.is_active) issues.push("Draft/private");
+      if (!row.category_id) issues.push("Missing category");
+      if (!row.description) issues.push("Missing description");
+      if (!row.images) issues.push("Missing image");
+      if (type === "PRODUCT") {
+        if (!row.price) issues.push("Missing price");
+        if (!row.brand || !row.model) issues.push("Missing brand/model");
+        if (!row.delivery_coverage) issues.push("Missing delivery coverage");
+        if (row.doc_count === 0) issues.push("No technical documents");
+      } else {
+        if (!row.starting_price) issues.push("Missing starting price");
+        if (!row.coverage_area) issues.push("Missing coverage area");
+        if (!row.estimated_response_time) issues.push("Missing response time");
+        if (row.doc_count === 0) issues.push("No supporting documents");
+      }
+      const status = row.is_active && issues.filter(i => !i.startsWith("Draft")).length <= 1 ? "ready" :
+                     row.is_active ? "needs_work" : "draft";
+      return { id: row.id, name: row.name, offeringType: type, issues, status };
+    };
+
+    res.json({
+      products: products.rows.map((r: any) => evaluate(r, "PRODUCT")),
+      services: services.rows.map((r: any) => evaluate(r, "SERVICE")),
+    });
+  } catch (err) {
+    console.error("Provider readiness error:", err);
+    res.status(500).json({ error: "Failed to check readiness" });
+  }
+});
+
 export default router;
+export { resolveProviderCompany };
