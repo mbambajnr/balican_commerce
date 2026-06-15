@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import {
   ShoppingBag, FileText, CalendarCheck, Users, ArrowRight,
-  Tag, ClipboardText, CurrencyNgn, TrendUp, Bell, Plus,
+  Tag, ClipboardText, Coins, TrendUp, Bell, Plus,
   Clock, DotsThree, Building, Handshake, Storefront
 } from "@phosphor-icons/react";
 import { CardSkeleton } from "@/components/admin/LoadingSkeleton";
@@ -24,7 +24,7 @@ const statIcons: Record<string, any> = {
   pendingCompanies: Clock,
   totalProviders: Handshake,
   totalBuyers: Storefront,
-  creditOrders: CurrencyNgn,
+  creditOrders: Coins,
 };
 
 const statLabels: Record<string, string> = {
@@ -165,7 +165,7 @@ export default function AdminDashboard() {
     {
       label: "Outstanding Balance",
       value: formatCurrency(data.stats.totalOutstanding),
-      icon: CurrencyNgn,
+      icon: Coins,
       color: "bg-red-50 text-red-500",
       href: "/admin/orders",
       trend: "+12",
@@ -173,7 +173,7 @@ export default function AdminDashboard() {
     {
       label: "Total Credit",
       value: formatCurrency(data.stats.creditTotal),
-      icon: CurrencyNgn,
+      icon: Coins,
       color: "bg-emerald-50 text-emerald-600",
       href: "/admin/orders",
       trend: "+5",

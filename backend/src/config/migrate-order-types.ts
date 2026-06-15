@@ -34,6 +34,7 @@ async function run() {
     console.log("Order types migration completed successfully");
   } catch (err) {
     console.error("Order types migration failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

@@ -3,38 +3,29 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [role, setRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (loading) return;
+    if (!user) {
       router.push("/auth/login");
       return;
     }
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      setRole(payload.role);
-      if (payload.role !== "super_admin") {
-        router.push("/");
-        return;
-      }
-    } catch {
-      router.push("/auth/login");
+    if (user.role !== "super_admin") {
+      router.push("/");
     }
-    setLoading(false);
-  }, [router]);
+  }, [loading, router, user]);
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" /></div>;
   }
 
-  if (role !== "super_admin") return null;
+  if (user?.role !== "super_admin") return null;
 
   const navItems = [
     { href: "/super-admin", label: "Dashboard", icon: "📊" },

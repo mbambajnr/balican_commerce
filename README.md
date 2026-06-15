@@ -36,12 +36,9 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 # Edit these files with your values (see Environment Variables section)
 
-# 4. Run database migrations (in order)
+# 4. Run all tracked database migrations
 cd backend
-npm run migrate                # Core schema (users, products, orders, etc.)
-npm run migrate:bookings       # Booking tables & columns
-npm run migrate:email-logs     # Email logs table
-npm run migrate-credits        # Credit/payment columns
+npm run migrate                # Ordered PostgreSQL migrations with checksums
 npm run migrate:es             # Elasticsearch product indices
 
 # 5. Seed product catalog data
@@ -53,7 +50,8 @@ npm run dev
 
 - **Frontend:** http://localhost:3000
 - **Backend API:** http://localhost:4000/api
-- **Health check:** http://localhost:4000/api/health
+- **Liveness:** http://localhost:4000/api/health
+- **Readiness:** http://localhost:4000/api/ready (database, complete schema, writable storage)
 
 ## Environment Variables
 
@@ -65,11 +63,12 @@ npm run dev
 | `NODE_ENV`             | No       | `development`                             | Environment mode (`development`, `production`, `test`)          |
 | `DATABASE_URL`         | **Yes**  | `postgresql://sslplan:...@localhost:5432/sslplan` | PostgreSQL connection string                         |
 | `JWT_SECRET`           | **Yes**  | —                                         | JWT signing key. Generate: `openssl rand -hex 32`               |
-| `JWT_EXPIRES_IN`       | No       | `7d`                                      | JWT expiry duration                                              |
+| `JWT_EXPIRES_IN`       | No       | `1h`                                      | Revocable backend access-session expiry                          |
 | `PAYSTACK_SECRET_KEY`  | No\*     | —                                         | Paystack secret key. Required for live payments.                |
 | `PAYSTACK_PUBLIC_KEY`  | No\*     | —                                         | Paystack public key. Required for frontend payment button.       |
 | `RESEND_API_KEY`       | No       | —                                         | Resend API key for transactional emails.                        |
 | `RESEND_FROM_EMAIL`    | No       | `no-reply@yourdomain.com`                 | From-address for transactional emails.                          |
+| `ALERT_WEBHOOK_URL`    | **Yes** in production | —                              | HTTPS destination for critical readiness, payment, and email alerts. |
 | `FRONTEND_URL`         | No       | `http://localhost:3000`                   | Frontend URL used for CORS and redirects; also used as base for PDF product links. |
 | `ELASTICSEARCH_URL`    | No       | `http://localhost:9200`                   | Elasticsearch connection string                                  |
 | `ADMIN_SECRET_KEY`     | No\*     | —                                         | Secret required to register admin accounts. Set a strong value. |
@@ -242,24 +241,15 @@ The database runs in Docker (see `docker-compose.yml`). Key tables:
 | `procurement_lists`   | Company procurement list headers                       |
 | `procurement_list_items` | Items within procurement lists                      |
 
-Run migrations in this exact order (each is idempotent — safe to re-run):
+Run all PostgreSQL migrations through the tracked migration runner:
 ```bash
 cd backend
-npm run migrate                  # Core schema: users, products, categories, orders, rfqs, bookings, leads, CRM
-npm run migrate-credits          # Credit columns, payments table
-npm run migrate:bookings         # Extended booking columns and statuses
-npm run migrate:email-logs       # email_logs table
-npm run migrate:b2b-payments     # B2B payment fields (payment_status, amount_paid), bank_transfers, order_payments
-npm run migrate:quotations       # Quotations, quotation_items, quotation_events
-npm run migrate:invoices         # Invoices table, orders → quotations/rfqs links
-npm run migrate:order-types      # Order type enum, service order fields
-npm run migrate:concurrency      # Unique constraints, non-negative checks, dedup indexes
-npm run migrate:companies        # B2B companies, customer_groups, company_prices, product_attachments, procurement_lists
-npm run migrate:b2b-enhancements # Carts, store_credit_transactions, payment/shipping methods, variants, quick_orders
-npm run migrate:product-media    # Product media gallery columns on product_attachments (media_type, is_primary, embed_url, etc.)
-npm run migrate:es               # Elasticsearch product index
-npm run migrate:catalog          # Product catalog seed (categories + products)
+npm run migrate
 ```
+
+The runner applies all PostgreSQL migrations in dependency order, records checksums in
+`schema_migrations`, and fails if an applied migration is edited. Elasticsearch indexing remains
+a separate optional step: `npm run migrate:es`.
 
 A `npm run seed` command is available to populate the product catalog with sample data (solar panels, inverters, batteries, etc.).
 
@@ -341,11 +331,21 @@ Products support a full media gallery with multiple images and external video li
 
 ### Authentication Flow
 
-1. User submits credentials via `POST /api/auth/login`
-2. Backend returns JWT token and user object
-3. Frontend stores token via Auth.js JWT callback
-4. `middleware.ts` protects routes: `/account/*`, `/orders/*` (auth required), `/admin/*` (admin role required)
-5. API calls use the token from Auth.js session (via `localStorage` fallback)
+1. Auth.js submits credentials server-side to `POST /api/auth/login`
+2. Backend creates a revocable one-hour session and returns its signed token to Auth.js
+3. Auth.js stores the backend credential only inside its encrypted HttpOnly session cookie
+4. Browser API calls use the same-origin `/backend-api/*` proxy
+5. The proxy attaches the backend credential server-side; browser JavaScript never receives it
+6. Protected backend requests load current role and account/company status from PostgreSQL
+
+Company registration creates the company and initial company-admin user in one database transaction. Welcome notifications run after commit and do not invalidate an otherwise successful registration.
+
+### Observability
+
+- Every response includes `X-Request-ID`; valid client-supplied IDs are propagated.
+- API completion and unhandled-error logs are emitted as redacted JSON with latency, status, request ID, and authenticated user/company IDs when available.
+- Critical readiness, Paystack mismatch, and email-delivery events are sent to `ALERT_WEBHOOK_URL` with a one-minute duplicate-alert cooldown.
+- Error responses handled by the central middleware include the request ID for support correlation.
 
 ## Testing
 
@@ -474,13 +474,8 @@ Stop with: `docker compose down`
 | `npm run dev`                        | backend      | `tsx watch src/index.ts`              |
 | `npm run build`                      | backend      | `tsc`                                 |
 | `npm start`                          | backend      | `node dist/src/index.js`             |
-| `npm run migrate`                    | backend      | Core database migration               |
-| `npm run migrate:bookings`           | backend      | Booking migration                     |
-| `npm run migrate:email-logs`        | backend      | Email logs table                      |
-| `npm run migrate-credits`            | backend      | Credit/payment tables                 |
-| `npm run migrate:b2b-payments`       | backend      | B2B payment tables                    |
-| `npm run migrate:invoices`           | backend      | Invoice table                         |
-| `npm run migrate:quotations`        | backend      | Quotation tables                      |
+| `npm run migrate`                    | backend      | All tracked PostgreSQL migrations     |
+| `npm run migrate:core`               | backend      | Legacy core migration only            |
 | `npm run migrate:es`                 | backend      | Elasticsearch index                   |
 | `npm run seed`                       | backend      | Seed product catalog                   |
 | `npm test`                           | backend      | Run all Jest tests                     |

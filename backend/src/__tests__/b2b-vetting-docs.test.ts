@@ -126,6 +126,19 @@ describe("POST /company/vetting/upload", () => {
     expect(res.body.error).toContain("Unsupported file type");
   });
 
+  it("rejects content that does not match the declared PDF type", async () => {
+    const res = await request(app)
+      .post("/api/company/vetting/upload")
+      .set("Authorization", `Bearer ${userToken}`)
+      .attach("file", Buffer.from("<html>not a pdf</html>"), {
+        filename: "spoofed.pdf",
+        contentType: "application/pdf",
+      })
+      .field("question_key", "registration_document");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("File content does not match");
+  });
+
   it("rejects file > 10 MB", async () => {
     const buf = makeOversizedBuffer();
     const res = await request(app)

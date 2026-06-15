@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { User } from "next-auth";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API = process.env.BACKEND_API_URL || "http://localhost:4000/api";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -49,7 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt: ({ token, user }) => {
+    jwt: async ({ token, user }) => {
       if (user) {
         const u = user as any;
         token.id = u.id;
@@ -68,7 +68,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.company_status = u.company_status;
         token.is_provider = u.is_provider;
         token.verification_status = u.verification_status;
-        token.token = u.token;
+        token.backendToken = u.token;
+      } else if (typeof token.backendToken === "string") {
+        const response = await fetch(`${API}/auth/me`, {
+          headers: { Authorization: `Bearer ${token.backendToken}` },
+          cache: "no-store",
+        }).catch(() => null);
+        if (response?.ok) {
+          const data = await response.json();
+          const u = data.user;
+          token.role = u.role;
+          token.first_name = u.first_name;
+          token.last_name = u.last_name;
+          token.phone = u.phone;
+          token.credit_limit = u.credit_limit;
+          token.outstanding_balance = u.outstanding_balance;
+          token.store_credit = u.store_credit;
+          token.company_id = u.company_id;
+          token.company_role = u.company_role;
+          token.account_status = u.account_status;
+          token.company_name = u.company_name;
+          token.company_status = u.company_status;
+          token.is_provider = u.is_provider;
+        } else {
+          token.role = "customer";
+          token.account_status = "suspended";
+          delete token.backendToken;
+        }
       }
       return token;
     },
@@ -88,8 +114,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.company_status = token.company_status;
       session.user.is_provider = token.is_provider;
       session.user.verification_status = token.verification_status;
-      session.token = token.token;
       return session;
+    },
+  },
+  session: {
+    maxAge: 60 * 60,
+  },
+  jwt: {
+    maxAge: 60 * 60,
+  },
+  events: {
+    signOut: async (message) => {
+      const token = "token" in message ? message.token : undefined;
+      if (typeof token?.backendToken !== "string") return;
+      await fetch(`${API}/auth/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token.backendToken}` },
+      }).catch(() => {});
     },
   },
   pages: {

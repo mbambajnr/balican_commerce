@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 import { config } from "../config";
+import { emitCriticalAlert } from "./alerts";
+import { logger } from "./logger";
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@balican.resend.dev";
 const FROM_NAME = "Bali-Can Limited";
@@ -33,8 +35,9 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
   const client = getClient();
   if (!client) {
     if (config.nodeEnv !== "test") {
-      console.warn("Resend API key not configured — email not sent");
+      logger.warn("email.provider_not_configured");
     }
+    emitCriticalAlert("email.delivery_unavailable", { reason: "provider_not_configured" });
     return { success: false, error: "Email provider not configured" };
   }
 
@@ -59,11 +62,19 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
     const result = await client.emails.send(payload);
 
     if (result.error) {
+      emitCriticalAlert("email.delivery_failed", {
+        recipientCount: Array.isArray(options.to) ? options.to.length : 1,
+        providerError: result.error,
+      });
       return { success: false, error: JSON.stringify(result.error) };
     }
 
     return { success: true, data: result.data };
   } catch (err: any) {
+    emitCriticalAlert("email.delivery_failed", {
+      recipientCount: Array.isArray(options.to) ? options.to.length : 1,
+      error: err,
+    });
     return { success: false, error: err.message || String(err) };
   }
 }

@@ -8,7 +8,7 @@ export function makeEmail(name: string): string {
 }
 
 export function makeUnique(prefix: string): string {
-  return `${TEST_PREFIX}${prefix}-${Date.now()}`;
+  return `${TEST_PREFIX}${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export async function createTestCompany(name?: string) {
@@ -105,7 +105,7 @@ export async function createTestProduct(
 ) {
   const name = overrides.name || makeUnique("product");
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now();
-  const sku = overrides.sku || `${TEST_PREFIX}sku-${Date.now()}`;
+  const sku = overrides.sku || makeUnique("sku");
 
   const result = await query(
     `INSERT INTO products (name, slug, description, category_id, price, stock_status, is_active, sku, hide_price)

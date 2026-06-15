@@ -1,14 +1,14 @@
 import { Router, Response } from "express";
 import argon2 from "argon2";
-import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { config } from "../config";
-import { query } from "../config/db";
+import { query, transaction } from "../config/db";
 import { validate } from "../middleware/validate";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { authLimiter } from "../middleware/security";
 import { notifyAndLog } from "../services/notifications";
 import { sendEmail } from "../services/email";
+import { createAuthSession, revokeAuthSession } from "../services/auth-session";
 
 const router = Router();
 router.use(["/login", "/admin-login", "/register", "/admin-register"], authLimiter);
@@ -54,6 +54,10 @@ const adminRegisterSchema = z.object({
   adminKey: z.string().min(1, "Admin key is required"),
 });
 
+function sessionRequest(req: { ip?: string; get(name: string): string | undefined }) {
+  return { ip: req.ip || null, userAgent: req.get("user-agent") || null };
+}
+
 router.post("/register", validate(registerSchema), async (req, res: Response) => {
   try {
     const {
@@ -64,17 +68,6 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
       requestedPaymentTerms,
       utm_source, utm_campaign, utm_medium, referrer_url,
     } = req.body;
-
-    const existing = await query("SELECT id FROM users WHERE email = $1", [email]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: "Email already registered" });
-    }
-
-    // Get default customer group
-    const groupResult = await query(
-      `SELECT id FROM customer_groups WHERE is_default = true LIMIT 1`
-    );
-    const defaultGroupId = groupResult.rows[0]?.id || null;
 
     // Map companyType to is_provider, is_buyer, and company_type
     const companyTypeEnum = (companyType === "both" ? "both_supplier_and_service_provider"
@@ -87,43 +80,54 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
 
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
-    // Create company
-    const companyResult = await query(
-      `INSERT INTO companies (name, business_type, industry, email, phone,
-        address, city, state, tax_id, business_registration_number,
-        contact_person_name, contact_person_email, contact_person_phone,
-        requested_payment_terms, customer_group_id, status,
-        company_type, is_provider, is_buyer, verification_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active',
-         $16::company_type, $17, $18, $19::verification_status)
-       RETURNING id, name, status`,
-      [companyName, businessType || null, industry || null, email, phone || null,
-       address || null, city || null, state || null, taxId || null, businessRegistrationNumber || null,
-       contactPersonName || `${firstName} ${lastName}`, contactPersonEmail || email, contactPersonPhone || phone || null,
-       requestedPaymentTerms || null, defaultGroupId,
-       companyTypeEnum, isProvider, isBuyer, verificationStatus]
-    );
-    const company = companyResult.rows[0];
+    const { company, user } = await transaction(async (client) => {
+      const existing = await client.query("SELECT id FROM users WHERE email = $1", [email]);
+      if (existing.rows.length > 0) {
+        const duplicateError = new Error("Email already registered") as Error & { code?: string };
+        duplicateError.code = "EMAIL_EXISTS";
+        throw duplicateError;
+      }
 
-    // Create user linked to company
-    const result = await query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, phone,
-        company_id, company_role, account_status, company_name, tax_id, business_registration_number,
-        utm_source, utm_campaign, utm_medium, referrer_url)
-       VALUES ($1, $2, $3, $4, $5, $6, 'company_admin', 'active', $7, $8, $9,
-         $10, $11, $12, $13)
-       RETURNING id, email, first_name, last_name, phone, role, company_id, created_at`,
-      [email, passwordHash, firstName, lastName, phone || null,
-       company.id, companyName, taxId || null, businessRegistrationNumber || null,
-       utm_source || null, utm_campaign || null, utm_medium || null, referrer_url || null]
-    );
+      const groupResult = await client.query(
+        `SELECT id FROM customer_groups WHERE is_default = true LIMIT 1`
+      );
+      const defaultGroupId = groupResult.rows[0]?.id || null;
 
-    const user = result.rows[0];
-    const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn as any,
+      const companyResult = await client.query(
+        `INSERT INTO companies (name, business_type, industry, email, phone,
+          address, city, state, tax_id, business_registration_number,
+          contact_person_name, contact_person_email, contact_person_phone,
+          requested_payment_terms, customer_group_id, status,
+          company_type, is_provider, is_buyer, verification_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active',
+           $16::company_type, $17, $18, $19::verification_status)
+         RETURNING id, name, status`,
+        [companyName, businessType || null, industry || null, email, phone || null,
+         address || null, city || null, state || null, taxId || null, businessRegistrationNumber || null,
+         contactPersonName || `${firstName} ${lastName}`, contactPersonEmail || email, contactPersonPhone || phone || null,
+         requestedPaymentTerms || null, defaultGroupId,
+         companyTypeEnum, isProvider, isBuyer, verificationStatus]
+      );
+      const company = companyResult.rows[0];
+
+      const userResult = await client.query(
+        `INSERT INTO users (email, password_hash, first_name, last_name, phone,
+          company_id, company_role, account_status, company_name, tax_id, business_registration_number,
+          utm_source, utm_campaign, utm_medium, referrer_url)
+         VALUES ($1, $2, $3, $4, $5, $6, 'company_admin', 'active', $7, $8, $9,
+           $10, $11, $12, $13)
+         RETURNING id, email, first_name, last_name, phone, role, company_id, created_at`,
+        [email, passwordHash, firstName, lastName, phone || null,
+         company.id, companyName, taxId || null, businessRegistrationNumber || null,
+         utm_source || null, utm_campaign || null, utm_medium || null, referrer_url || null]
+      );
+
+      return { company, user: userResult.rows[0] };
     });
 
-    await notifyAndLog({
+    // Side effects run only after the database transaction commits and never
+    // change the registration response if an external service is unavailable.
+    void Promise.allSettled([notifyAndLog({
       recipientEmail: email,
       recipientName: `${firstName} ${lastName}`,
       subject: "Registration Received – Bali-Can Limited",
@@ -132,10 +136,7 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
       entityType: "company",
       entityId: company.id,
       performedBy: user.id,
-    });
-
-    // Send welcome email
-    sendEmail({
+    }), sendEmail({
       to: email,
       subject: "Welcome to Bali-Can Limited",
       html: `
@@ -174,10 +175,13 @@ router.post("/register", validate(registerSchema), async (req, res: Response) =>
           </div>
         </div>
       `,
-    }).catch(() => {});
+    })]);
 
-    res.status(201).json({ user, token, company });
-  } catch (err) {
+    res.status(201).json({ user, company });
+  } catch (err: any) {
+    if (err?.code === "EMAIL_EXISTS" || err?.code === "23505") {
+      return res.status(409).json({ error: "Email already registered" });
+    }
     console.error("Register error:", err);
     res.status(500).json({ error: "Registration failed" });
   }
@@ -208,10 +212,6 @@ router.post("/admin-register", validate(adminRegisterSchema), async (req, res: R
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn as any,
-    });
-
     await notifyAndLog({
       recipientEmail: email,
       recipientName: `${firstName} ${lastName}`,
@@ -255,7 +255,7 @@ router.post("/admin-register", validate(adminRegisterSchema), async (req, res: R
       `,
     }).catch(() => {});
 
-    res.status(201).json({ user, token });
+    res.status(201).json({ user });
   } catch (err) {
     console.error("Admin register error:", err);
     res.status(500).json({ error: "Registration failed" });
@@ -267,7 +267,7 @@ router.post("/admin-login", validate(loginSchema), async (req, res: Response) =>
     const { email, password } = req.body;
 
     const result = await query(
-      "SELECT id, email, password_hash, first_name, last_name, phone, role, created_at FROM users WHERE email = $1",
+      "SELECT id, email, password_hash, first_name, last_name, phone, role, account_status, created_at FROM users WHERE email = $1",
       [email]
     );
 
@@ -289,9 +289,10 @@ router.post("/admin-login", validate(loginSchema), async (req, res: Response) =>
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn as any,
-    });
+    if (user.account_status && user.account_status !== "active") {
+      return res.status(403).json({ error: "This admin account is suspended." });
+    }
+    const token = await createAuthSession(user.id, sessionRequest(req));
 
     const { password_hash, ...safeUser } = user;
 
@@ -369,9 +370,10 @@ router.post("/login", validate(loginSchema), async (req, res: Response) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn as any,
-    });
+    if (user.account_status !== "active") {
+      return res.status(403).json({ error: "Your account is not active. Please contact support." });
+    }
+    const token = await createAuthSession(user.id, sessionRequest(req));
 
     const { password_hash, ...safeUser } = user;
 
@@ -441,6 +443,11 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
     console.error("Get me error:", err);
     res.status(500).json({ error: "Failed to get user" });
   }
+});
+
+router.post("/logout", authenticate, async (req: AuthRequest, res: Response) => {
+  await revokeAuthSession(req.sessionId!);
+  res.json({ success: true });
 });
 
 router.put("/profile", authenticate, validate(z.object({

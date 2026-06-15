@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 import CreditApplicationModal from "@/components/CreditApplicationModal";
 import {
   Building, ShoppingBag, FileText, CalendarCheck, ArrowRight, Cube,
-  CurrencyNgn, Wrench, Clock, CheckCircle, Users, Truck, CreditCard,
+  Coins, Wrench, Clock, CheckCircle, Users, Truck, CreditCard,
   Phone, Envelope, MapPin, Plus, Star, UserPlus, ShoppingCart,
   UploadSimple, ClipboardText, ChatText, Clipboard,
 } from "@phosphor-icons/react";
@@ -329,7 +329,7 @@ export default function CompanyDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-warn">
-                <CurrencyNgn size={20} weight="duotone" />
+                <Coins size={20} weight="duotone" />
               </div>
               <div>
                 <p className="font-display text-base font-semibold text-ink">Credit Sales</p>

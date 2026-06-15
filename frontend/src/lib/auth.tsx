@@ -1,11 +1,9 @@
 "use client";
 
-import { createContext, useContext, useCallback, useEffect } from "react";
+import { createContext, useContext, useCallback } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { setApiToken } from "./api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_BASE = "/backend-api";
 
 interface AuthContextType {
   user: Session["user"] | null;
@@ -22,26 +20,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const user = session?.user ?? null;
   const loading = status === "loading";
 
-  // Sync localStorage token with session state
-  useEffect(() => {
-    if (status === "loading") return;
-    if (session?.token) {
-      const t = session.token as string;
-      setApiToken(t);
-      localStorage.setItem("token", t);
-    } else {
-      localStorage.removeItem("token");
-      setApiToken(null);
-    }
-  }, [session, status]);
-
   const login = useCallback(async (email: string, password: string) => {
     const result = await signIn("credentials", { email, password, redirect: false });
     if (result?.error) throw new Error("Invalid credentials");
     const newSession = await update();
-    const token = newSession?.token || null;
-    setApiToken(token);
-    if (token) localStorage.setItem("token", token);
     return newSession?.user || null;
   }, [update]);
 
@@ -63,15 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await signIn("credentials", { email: data.email, password: data.password, redirect: false });
     const newSession = await update();
-    const token = newSession?.token || null;
-    setApiToken(token);
-    if (token) localStorage.setItem("token", token);
   }, [update]);
 
   const logout = useCallback(() => {
     signOut({ callbackUrl: "/" });
-    localStorage.removeItem("token");
-    setApiToken(null);
   }, []);
 
   return (

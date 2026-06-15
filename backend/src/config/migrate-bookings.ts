@@ -30,6 +30,7 @@ async function run() {
     console.log("Booking migration completed successfully");
   } catch (err) {
     console.error("Booking migration failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

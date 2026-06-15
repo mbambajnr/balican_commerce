@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
-import * as XLSX from "xlsx";
 import argon2 from "argon2";
 import { query, transaction, TransactionClient } from "../config/db";
 import { authenticate, requireAdmin, requireCompanyActive, requireCompanyAdmin, AuthRequest } from "../middleware/auth";
@@ -8,8 +7,14 @@ import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { applyCustomPricing } from "./products";
 import { notifyAndLog } from "../services/notifications";
+import { revokeUserSessions } from "../services/auth-session";
+import {
+  parseSpreadsheet,
+  SpreadsheetParseError,
+  SPREADSHEET_MAX_FILE_SIZE,
+} from "../services/spreadsheet";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: SPREADSHEET_MAX_FILE_SIZE } });
 const router = Router();
 
 const ALLOWED_CREDIT_ROLES = ["company_admin", "finance", "buyer"];
@@ -454,9 +459,7 @@ router.post("/quick-order/csv", authenticate, requireCompanyActive, upload.singl
     const file = (req as any).file as Express.Multer.File | undefined;
     if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-    const workbook = XLSX.read(file.buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet);
+    const rows = await parseSpreadsheet(file);
 
     if (rows.length === 0) return res.status(400).json({ error: "File is empty" });
 
@@ -567,6 +570,9 @@ router.post("/quick-order/csv", authenticate, requireCompanyActive, upload.singl
 
     res.status(201).json({ order: order.rows[0], errors: errors.length > 0 ? errors : undefined });
   } catch (err: any) {
+    if (err instanceof SpreadsheetParseError || err instanceof multer.MulterError) {
+      return res.status(400).json({ error: err.message });
+    }
     if (err.message === "COMPANY_CREDIT_NOT_APPROVED") {
       return res.status(400).json({ error: "Your company is not approved for credit sales." });
     }
@@ -1298,6 +1304,7 @@ router.patch("/company/team/:userId", authenticate, requireCompanyActive, requir
       `UPDATE users SET ${updates.join(", ")} WHERE id = $${values.length} RETURNING id, email, first_name, last_name, phone, role, company_role, account_status`,
       values
     );
+    await revokeUserSessions(userId);
 
     res.json({ user: result.rows[0] });
   } catch (err) {

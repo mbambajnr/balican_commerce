@@ -1,10 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
-let _authToken: string | null = null;
-
-export function setApiToken(token: string | null) {
-  _authToken = token;
-}
+const API_BASE = "/backend-api";
 
 export class ApiError extends Error {
   details: any;
@@ -18,15 +12,13 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
+    credentials: "same-origin",
   });
 
   if (!res.ok) {
@@ -41,9 +33,7 @@ async function request<T>(
 export const api = {
   // Auth
   register: (data: { email: string; password: string; firstName: string; lastName: string; phone?: string; companyName?: string; companyType?: string; businessType?: string; industry?: string; address?: string; city?: string; state?: string; taxId?: string; businessRegistrationNumber?: string; contactPersonName?: string; contactPersonEmail?: string; contactPersonPhone?: string; requestedPaymentTerms?: string }) =>
-    request<{ user: any; token: string; company: any }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
-  login: (data: { email: string; password: string }) =>
-    request<{ user: any; token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
+    request<{ user: any; company: any }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   getMe: () => request<{ user: any }>("/auth/me"),
   updateProfile: (data: any) => request<{ user: any }>("/auth/profile", { method: "PUT", body: JSON.stringify(data) }),
 
@@ -60,11 +50,10 @@ export const api = {
   bulkImport: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     return fetch(`${API_BASE}/products/bulk-import`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
+      credentials: "same-origin",
     }).then(async (res) => {
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Import failed" })); throw new ApiError(res.status, err.error); }
       return res.json() as Promise<{ total: number; created: number; skipped: number; errors: { row: number; message: string }[] }>;
@@ -336,11 +325,10 @@ export const api = {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("paymentMethod", paymentMethod);
-    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     return fetch(`${API_BASE}/quick-order/csv`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
+      credentials: "same-origin",
     }).then(async (res) => { if (!res.ok) { const err = await res.json().catch(() => ({ error: "Quick order failed" })); throw new ApiError(res.status, err.error); } return res.json() as Promise<{ order: any; errors?: any[] }>; });
   },
 
@@ -413,11 +401,10 @@ export const api = {
   adminUploadImage: (file: File) => {
     const formData = new FormData();
     formData.append("image", file);
-    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     return fetch(`${API_BASE}/admin/upload`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
+      credentials: "same-origin",
     }).then(async (res) => {
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Upload failed" })); throw new ApiError(res.status, err.error); }
       return res.json() as Promise<{ url: string; filename: string }>;
@@ -430,11 +417,10 @@ export const api = {
   adminUploadProductImages: (productId: string, files: File[]) => {
     const formData = new FormData();
     files.forEach((f) => formData.append("images", f));
-    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     return fetch(`${API_BASE}/admin/products/${productId}/media/images`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
+      credentials: "same-origin",
     }).then(async (res) => {
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Upload failed" })); throw new ApiError(res.status, err.error); }
       return res.json() as Promise<{ media: any[] }>;
@@ -538,16 +524,13 @@ export const api = {
   adminAddVettingNote: (companyId: string, data: { note: string }) =>
     request<{ message: string }>(`/admin/companies/${companyId}/vetting/note`, { method: "POST", body: JSON.stringify(data) }),
   uploadVettingDocument: async (file: File, questionKey: string) => {
-    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("question_key", questionKey);
     const res = await fetch(`${API_BASE}/company/vetting/upload`, {
       method: "POST",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
       body: formData,
+      credentials: "same-origin",
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: "Upload failed" }));
@@ -557,7 +540,7 @@ export const api = {
   },
   getVettingDocuments: (companyId: string) =>
     request<{ documents: any[] }>(`/admin/companies/${companyId}/vetting/documents`),
-  getVettingDocumentUrl: (docId: string) => `/company/vetting/documents/${docId}/download`,
+  getVettingDocumentUrl: (docId: string) => `${API_BASE}/company/vetting/documents/${docId}/download`,
 
   // Marketplace
   getMarketplaceProviders: (params?: { type?: string; region?: string; category?: string; search?: string; page?: string; limit?: string }) => {
@@ -774,11 +757,10 @@ export const api = {
     const formData = new FormData();
     formData.append("document", file);
     formData.append("document_type", documentType);
-    const token = _authToken || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     const res = await fetch(`${API_BASE}/provider/verification/documents/upload`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
+      credentials: "same-origin",
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: "Upload failed" }));
@@ -837,7 +819,7 @@ export const api = {
     return request<{ documents: any[]; total: number; page: number; limit: number }>(`/super-admin/documents${qs ? `?${qs}` : ""}`);
   },
 
-  getDocumentDownloadUrl: (id: string) => `/api/super-admin/documents/${id}/download`,
+  getDocumentDownloadUrl: (id: string) => `${API_BASE}/super-admin/documents/${id}/download`,
 
   approveDocument: (id: string, notes?: string) =>
     request<{ message: string }>(`/super-admin/documents/${id}/approve`, { method: "POST", body: JSON.stringify({ notes }) }),

@@ -17,6 +17,7 @@ services:
       - sslplan
 
   backend:
+    image: ${BACKEND_IMAGE:-balican-backend:${APP_RELEASE:-latest}}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -31,23 +32,42 @@ services:
       PORT: "4000"
       DATABASE_URL: postgresql://sslplan:${POSTGRES_PASSWORD:-sslplan_prod}@postgres:5432/sslplan
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       FRONTEND_URL: ${FRONTEND_URL:-https://sslplan.com}
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
-      PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY:-}
       PAYSTACK_WEBHOOK_SECRET: ${PAYSTACK_WEBHOOK_SECRET:-}
+      PAYMENT_CURRENCY: ${PAYMENT_CURRENCY:-GHS}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
+      APP_RELEASE: ${APP_RELEASE:-development}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:-}
       ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-}
-      UPLOAD_STORAGE_DRIVER: local
+      UPLOAD_STORAGE_DRIVER: ${UPLOAD_STORAGE_DRIVER:-s3}
       UPLOAD_DIR: /app/uploads
       PUBLIC_UPLOAD_BASE_URL: ${PUBLIC_UPLOAD_BASE_URL:-https://sslplan.com/uploads}
       UPLOAD_MAX_IMAGE_SIZE: ${UPLOAD_MAX_IMAGE_SIZE:-5242880}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_SIGNED_URL_EXPIRES_SECONDS: ${S3_SIGNED_URL_EXPIRES_SECONDS:-60}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - sslplan
 
   frontend:
+    image: ${FRONTEND_IMAGE:-balican-frontend:${APP_RELEASE:-latest}}
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -57,12 +77,14 @@ services:
         AUTH_SECRET: ${AUTH_SECRET}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_URL: ${AUTH_URL:-https://sslplan.com}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://sslplan.com/api}
+      BACKEND_API_URL: http://backend:4000/api
     networks:
       - sslplan
 

@@ -16,4 +16,7 @@ async function run() {
   console.log("Services enhancement migration complete");
 }
 
-run().catch(console.error);
+run().catch((err) => {
+  console.error("Services enhancement migration failed:", err);
+  process.exitCode = 1;
+});

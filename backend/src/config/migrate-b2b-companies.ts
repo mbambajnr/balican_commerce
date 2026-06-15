@@ -141,35 +141,33 @@ async function migrate() {
       ON CONFLICT DO NOTHING
     `);
 
-    // Migrate existing user company data to company records (if columns exist)
-    try {
-      const existingUsers = await client.query(
-        `SELECT id, email, company_name, tax_id, business_registration_number,
-                billing_contact_name, billing_contact_email, billing_contact_phone,
-                phone, first_name, last_name, role
-         FROM users WHERE company_name IS NOT NULL AND company_id IS NULL`
+    // Migrate existing user company data to company records.
+    const existingUsers = await client.query(
+      `SELECT id, email, company_name, tax_id, business_registration_number,
+              billing_contact_name, billing_contact_email, billing_contact_phone,
+              phone, first_name, last_name, role
+       FROM users WHERE company_name IS NOT NULL AND company_id IS NULL`
+    );
+
+    for (const user of existingUsers.rows) {
+      const companyResult = await client.query(
+        `INSERT INTO companies (name, email, phone, tax_id, business_registration_number,
+          contact_person_name, contact_person_email, contact_person_phone, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [user.company_name, user.email, user.phone,
+         user.tax_id, user.business_registration_number,
+         `${user.first_name} ${user.last_name}`, user.email, user.phone]
       );
 
-      for (const user of existingUsers.rows) {
-        const companyResult = await client.query(
-          `INSERT INTO companies (name, email, phone, tax_id, business_registration_number,
-            contact_person_name, contact_person_email, contact_person_phone, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
-           ON CONFLICT DO NOTHING
-           RETURNING id`,
-          [user.company_name, user.email, user.phone,
-           user.tax_id, user.business_registration_number,
-           `${user.first_name} ${user.last_name}`, user.email, user.phone]
+      if (companyResult.rows.length > 0) {
+        await client.query(
+          `UPDATE users SET company_id = $1 WHERE id = $2`,
+          [companyResult.rows[0].id, user.id]
         );
-
-        if (companyResult.rows.length > 0) {
-          await client.query(
-            `UPDATE users SET company_id = $1 WHERE id = $2`,
-            [companyResult.rows[0].id, user.id]
-          );
-        }
       }
-    } catch { /* columns may not exist yet — skip data migration */ }
+    }
 
     console.log("B2B company migration completed successfully");
     await client.query("COMMIT");

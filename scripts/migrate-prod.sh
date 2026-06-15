@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Silent Star Limited — Production Migration Runner
+# Balican Limited — Production Migration Runner
 # =============================================================================
 # Usage:
 #   ./scripts/migrate-prod.sh                    # Run with default .env
@@ -29,7 +29,7 @@ echo "========================================"
 
 # Run the main migration
 echo "[1/1] Main migration..."
-docker compose --env-file "$ENV_FILE" run --rm backend node dist/src/config/migrate.js
+docker compose --env-file "$ENV_FILE" run --rm backend node dist/src/config/migrate-all.js
 
 echo ""
 echo "========================================"

@@ -1,14 +1,18 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { config } from "../config";
 import { query } from "../config/db";
+import { resolveAuthSession } from "../services/auth-session";
 
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
+  sessionId?: string;
+  accountStatus?: string;
+  companyId?: string | null;
+  companyRole?: string | null;
+  companyStatus?: string | null;
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     return res.status(401).json({ error: "No token provided" });
@@ -16,12 +20,17 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   const token = header.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as {
-      userId: string;
-      role: string;
-    };
-    req.userId = decoded.userId;
-    req.userRole = decoded.role;
+    const session = await resolveAuthSession(token);
+    if (!session || session.accountStatus === "suspended") {
+      return res.status(401).json({ error: "Session is invalid, expired, or revoked" });
+    }
+    req.userId = session.userId;
+    req.userRole = session.role;
+    req.sessionId = session.sessionId;
+    req.accountStatus = session.accountStatus;
+    req.companyId = session.companyId;
+    req.companyRole = session.companyRole;
+    req.companyStatus = session.companyStatus;
     next();
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });

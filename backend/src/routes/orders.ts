@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import crypto from "crypto";
+import { emitCriticalAlert } from "../services/alerts";
 import { query, transaction } from "../config/db";
 import { authenticate, requireAdmin, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
@@ -836,6 +837,7 @@ router.post("/:id/paystack-init", authenticate, requireCompanyActive, async (req
     const paystackPayload = {
       email: req.body.email,
       amount: Math.round(Number(order.total) * 100),
+      currency: config.paystack.currency,
       reference: `SS-${order.order_number}-${Date.now()}`,
       callback_url: `${config.frontendUrl}/orders/${order.id}/confirm`,
       metadata: { order_id: order.id, order_number: order.order_number },
@@ -872,8 +874,9 @@ router.post("/:id/paystack-init", authenticate, requireCompanyActive, async (req
 router.post("/paystack-webhook", async (req, res: Response) => {
   try {
     // Resolve the signing key (allow env override so tests can inject per-test keys)
-    const signingKey = process.env.PAYSTACK_SECRET_KEY
-      || process.env.PAYSTACK_WEBHOOK_SECRET
+    const signingKey = process.env.PAYSTACK_WEBHOOK_SECRET
+      || process.env.PAYSTACK_SECRET_KEY
+      || config.paystack.webhookSecret
       || config.paystack.secretKey;
 
     // Fail closed in production — never skip verification
@@ -903,8 +906,14 @@ router.post("/paystack-webhook", async (req, res: Response) => {
 
     const event = req.body;
     if (event && event.event === "charge.success") {
-      const reference = event.data.reference;
-      const paystackAmount = event.data.amount;
+      const reference = event.data?.reference;
+      const paystackAmount = event.data?.amount;
+      const paystackCurrency = event.data?.currency;
+
+      if (typeof reference !== "string" || reference.length === 0) {
+        console.error("Paystack webhook rejected: missing transaction reference");
+        return res.sendStatus(200);
+      }
 
       await transaction(async (client) => {
         const existingPayment = await client.query(
@@ -926,16 +935,42 @@ router.post("/paystack-webhook", async (req, res: Response) => {
         const ord = order.rows[0];
         const total = parseFloat(ord.total);
 
-        // Verify Paystack amount matches order total (in kobo)
         const expectedKobo = Math.round(total * 100);
-        if (paystackAmount && paystackAmount < expectedKobo) {
-          console.error(`Paystack amount mismatch: expected ${expectedKobo}, got ${paystackAmount}`);
+        const amountMatches = Number.isInteger(paystackAmount) && paystackAmount === expectedKobo;
+        const currencyMatches = paystackCurrency === config.paystack.currency;
+        if (!amountMatches || !currencyMatches) {
+          emitCriticalAlert("payment.paystack_mismatch", {
+            reference,
+            orderId: ord.id,
+            expectedAmount: expectedKobo,
+            receivedAmount: paystackAmount,
+            expectedCurrency: config.paystack.currency,
+            receivedCurrency: paystackCurrency ?? null,
+          }, 0);
+          await client.query(
+            `INSERT INTO activities (entity_type, entity_id, type, description, metadata, user_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              "order",
+              ord.id,
+              "payment.mismatch",
+              "Paystack payment did not match the order amount or currency",
+              JSON.stringify({
+                reference,
+                expectedAmount: expectedKobo,
+                receivedAmount: paystackAmount ?? null,
+                expectedCurrency: config.paystack.currency,
+                receivedCurrency: paystackCurrency ?? null,
+              }),
+              ord.user_id,
+            ]
+          );
+          return;
         }
 
         const newPaid = total;
-        const newOutstanding = 0;
 
-        const upd = await client.query(
+        await client.query(
           `UPDATE orders SET payment_status = 'paid', amount_paid = $1, outstanding_amount = 0,
             status = 'paid', updated_at = NOW()
            WHERE id = $2`,

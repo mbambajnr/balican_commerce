@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { List, X, User, ArrowRight, FileText, Building, MagnifyingGlass, Storefront } from "@phosphor-icons/react";
+import { List, X, User, ArrowRight, FileText, Building, Storefront, ShieldCheck, ClipboardText, Path } from "@phosphor-icons/react";
 import NotificationBell from "@/components/NotificationBell";
 
 export default function Navbar() {
@@ -36,22 +36,18 @@ export default function Navbar() {
               </Link>
             ) : (
               <>
+                <Link href="/scout/new" data-testid="nav-post-request" className="text-sm font-semibold text-white transition-colors hover:text-blue-200">
+                  Post a Sourcing Request
+                </Link>
+                <Link href="/auth/register?companyType=supplier" data-testid="nav-for-suppliers" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                  For Suppliers
+                </Link>
                 <Link href="/marketplace" data-testid="nav-marketplace" className="text-sm text-zinc-300 transition-colors hover:text-white">
                   Marketplace
                 </Link>
-                <Link href="/scout" data-testid="nav-scout" className="text-sm text-zinc-300 transition-colors hover:text-white">
-                  Scout
+                <Link href="/#how-it-works" data-testid="nav-how-it-works" className="text-sm text-zinc-300 transition-colors hover:text-white">
+                  How It Works
                 </Link>
-                {user && (
-                  <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} data-testid="nav-my-requests" className="text-sm text-zinc-300 transition-colors hover:text-white">
-                    My Requests
-                  </Link>
-                )}
-                {user && (
-                  <Link href="/agreements" data-testid="nav-agreements" className="text-sm text-zinc-300 transition-colors hover:text-white">
-                    Agreements
-                  </Link>
-                )}
                 {user?.role === "admin" && (
                   <Link href="/admin" data-testid="nav-admin" className="text-sm text-zinc-300 transition-colors hover:text-white">
                     Admin
@@ -105,6 +101,8 @@ export default function Navbar() {
         {!isAdminAuth && (
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileOpen}
             className="flex items-center justify-center md:hidden text-white"
           >
             {mobileOpen ? <X size={24} /> : <List size={24} />}
@@ -135,11 +133,17 @@ export default function Navbar() {
               </>
             ) : (
               <>
+                <Link href="/scout/new" className="flex min-h-11 items-center gap-3 rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white" onClick={() => setMobileOpen(false)}>
+                  <ClipboardText size={18} /> Post a Sourcing Request
+                </Link>
+                <Link href="/auth/register?companyType=supplier" className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <ShieldCheck size={18} /> For Suppliers
+                </Link>
                 <Link href="/marketplace" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
                   <Storefront size={18} /> Marketplace
                 </Link>
-                <Link href="/scout" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
-                  <MagnifyingGlass size={18} /> Scout
+                <Link href="/#how-it-works" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>
+                  <Path size={18} /> How It Works
                 </Link>
                 {user && (
                   <Link href={(user as any)?.is_provider ? "/scout/available" : "/scout/dashboard"} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5" onClick={() => setMobileOpen(false)}>

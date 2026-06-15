@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import {
-  ClipboardText, Warning, CurrencyNgn, ArrowRight,
+  ClipboardText, Warning, Coins, ArrowRight,
   FileText, Building, CalendarCheck,
 } from "@phosphor-icons/react";
 
@@ -44,7 +44,7 @@ const cardConfig = [
   {
     key: "acceptedRequestsAwaitingConversion",
     label: "Awaiting Order Conversion",
-    icon: CurrencyNgn,
+    icon: Coins,
     color: "bg-emerald-50 text-emerald-600",
     href: "/admin/procurement",
     fallbackHref: "/admin",
@@ -67,13 +67,7 @@ export default function AdminOperationsPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/operations/summary`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json",
-      },
-    })
-      .then((r) => r.json())
+    api.get<OperationsSummary>("/admin/operations/summary")
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));

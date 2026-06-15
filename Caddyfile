@@ -1,31 +1,38 @@
-# Silent Star Limited — Caddy reverse proxy configuration
+# Balican Limited — Caddy reverse proxy configuration
 # Replace sslplan.com with your actual domain before deploying.
 
 sslplan.com {
-    # === API: proxy all /api/* requests to the backend ===
-    # Using `handle` (not `handle_path`) preserves the /api prefix so Express
-    # routes mounted at /api receive the full path (e.g. /api/products).
-    handle /api/* {
-        reverse_proxy backend:4000
-    }
+	# === Auth.js: keep session and callback routes on the frontend ===
+	handle /api/auth/* {
+		reverse_proxy frontend:3000
+	}
 
-    # === Uploads: proxy /uploads/* to backend static file serving ===
-    handle /uploads/* {
-        reverse_proxy backend:4000
-    }
+	# === API: proxy all /api/* requests to the backend ===
+	# Using `handle` (not `handle_path`) preserves the /api prefix so Express
+	# routes mounted at /api receive the full path (e.g. /api/products).
+	handle /api/* {
+		reverse_proxy backend:4000
+	}
 
-    # === Frontend: everything else goes to Next.js ===
-    handle {
-        reverse_proxy frontend:3000
-    }
+	# === Legacy public product uploads only ===
+	# The backend serves /uploads/products/* and never exposes /uploads/private/*.
+	# New production media is served directly from S3-compatible storage/CDN.
+	handle /uploads/* {
+		reverse_proxy backend:4000
+	}
 
-    # === Automatic HTTPS ===
-    # Caddy automatically provisions and renews Let's Encrypt certificates
-    # for the domain configured above. No extra configuration needed.
-    #
-    # For staging (avoid rate limits): set the ACME endpoint globally:
-    #   acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-    #
-    # For production (remove after testing):
-    #   (defaults to Let's Encrypt production)
+	# === Frontend: everything else goes to Next.js ===
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	# === Automatic HTTPS ===
+	# Caddy automatically provisions and renews Let's Encrypt certificates
+	# for the domain configured above. No extra configuration needed.
+	#
+	# For staging (avoid rate limits): set the ACME endpoint globally:
+	#   acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	#
+	# For production (remove after testing):
+	#   (defaults to Let's Encrypt production)
 }

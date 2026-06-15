@@ -54,18 +54,18 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="input-label">Email</label>
+            <label htmlFor="login-email" className="input-label">Email</label>
             <div className="relative">
               <Envelope size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input pl-10" placeholder="you@company.com" />
+              <input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input pl-10" placeholder="you@company.com" />
             </div>
             {errors.email && <p className="input-error">{errors.email}</p>}
           </div>
           <div>
-            <label className="input-label">Password</label>
+            <label htmlFor="login-password" className="input-label">Password</label>
             <div className="relative">
               <LockKey size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input pl-10" placeholder="Enter your password" />
+              <input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input pl-10" placeholder="Enter your password" />
             </div>
             {errors.password && <p className="input-error">{errors.password}</p>}
           </div>

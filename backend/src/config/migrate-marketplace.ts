@@ -112,6 +112,7 @@ async function run() {
     console.log("Marketplace migration completed");
   } catch (err) {
     console.error("Marketplace migration failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

@@ -1,8 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
-import jwt from "jsonwebtoken";
 import { query, transaction } from "../config/db";
-import { config } from "../config";
+import { resolveAuthSession } from "../services/auth-session";
 import { authenticate, requireAdmin, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 
@@ -199,10 +198,11 @@ router.post("/bulk", validate(bulkRfqSchema), async (req: AuthRequest, res: Resp
     const header = req.headers.authorization;
     if (header && header.startsWith("Bearer ")) {
       try {
-        const token = header.split(" ")[1];
-        const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; role: string };
-        req.userId = decoded.userId;
-        req.userRole = decoded.role;
+        const session = await resolveAuthSession(header.split(" ")[1]);
+        if (session && session.accountStatus !== "suspended") {
+          req.userId = session.userId;
+          req.userRole = session.role;
+        }
       } catch {}
     }
 

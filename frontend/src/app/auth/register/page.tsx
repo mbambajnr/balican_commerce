@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { getUTM } from "@/lib/utm";
@@ -69,6 +69,13 @@ export default function RegisterPage() {
   const [showIndustry, setShowIndustry] = useState(false);
   const [showBizType, setShowBizType] = useState(false);
   const [showPayTerms, setShowPayTerms] = useState(false);
+
+  useEffect(() => {
+    const companyType = new URLSearchParams(window.location.search).get("companyType");
+    if (companyType && ["buyer", "supplier", "service_provider", "both"].includes(companyType)) {
+      setForm((current) => ({ ...current, companyType }));
+    }
+  }, []);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -161,7 +168,7 @@ export default function RegisterPage() {
                     { value: "service_provider", label: "Service Provider", icon: Handshake, desc: "Offer installation & services" },
                     { value: "both", label: "Both", icon: ArrowsLeftRight, desc: "Buy & sell on the platform" },
                   ].map((opt) => (
-                    <button key={opt.value} type="button" onClick={() => update("companyType", opt.value)}
+                    <button key={opt.value} type="button" data-testid={`company-type-${opt.value}`} onClick={() => update("companyType", opt.value)}
                       className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-all ${
                         form.companyType === opt.value
                           ? "border-accent bg-accent/5 ring-1 ring-accent"

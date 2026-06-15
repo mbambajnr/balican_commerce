@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import {
-  ShoppingBag, CurrencyNgn, Bank, CreditCard, ArrowLeft,
+  ShoppingBag, Coins, Bank, CreditCard, ArrowLeft,
   FileText, Cube, ArrowSquareOut, CheckCircle,
 } from "@phosphor-icons/react";
 
@@ -274,7 +274,7 @@ export default function AccountOrderPaymentPage() {
       {showPaystack && (
         <div className="card mt-6 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <CurrencyNgn size={20} className="text-muted" weight="duotone" />
+            <Coins size={20} className="text-muted" weight="duotone" />
             <h2 className="font-display text-base font-semibold text-ink">Pay Online</h2>
           </div>
           <p className="text-sm text-muted mb-4">

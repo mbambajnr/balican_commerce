@@ -14,6 +14,9 @@ async function run() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS short_description TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS has_variable_price BOOLEAN DEFAULT false;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(100);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku_unique
+        ON products(sku) WHERE sku IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS product_images (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -409,6 +412,7 @@ async function run() {
     console.log("Product catalog migration & seed complete");
   } catch (err) {
     console.error("Catalog migration/seed failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

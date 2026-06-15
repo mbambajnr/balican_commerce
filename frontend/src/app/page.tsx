@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardText, ShieldCheck, Users, ShoppingBag, CreditCard, Gear, Truck } from "@phosphor-icons/react/dist/ssr";
-import { Reveal, Counter } from "@/lib/reveal";
+import { ArrowRight, ClipboardText, ShieldCheck, Users, ShoppingBag, CreditCard, Handshake } from "@phosphor-icons/react/dist/ssr";
+import { Reveal } from "@/lib/reveal";
 import HeroCarousel from "@/components/hero-carousel";
 import FeaturedProductCarousel from "@/components/featured-products";
 import TestimonialCarousel from "@/components/testimonial-carousel";
@@ -10,19 +10,19 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://balican.com";
 
 export const metadata: Metadata = {
-  title: "Bali-Can Limited — B2B Procurement Platform",
-  description: "Ghana's B2B procurement platform for industrial products and services. Submit RFQs, receive competitive quotes from vetted suppliers, manage company credit, and fulfill orders — HVAC, electrical, solar, and more.",
+  title: "Post Sourcing Requests & Compare Verified Suppliers in Ghana",
+  description: "Post a sourcing request in Ghana, receive proposals from verified suppliers, compare delivery and GH₵ credit terms, and manage the deal through fulfillment.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Bali-Can Limited — B2B Procurement Platform",
-    description: "Submit RFQs, receive competitive quotes from vetted suppliers, manage company credit, and fulfill orders — HVAC, electrical, solar, and more.",
+    title: "Post Sourcing Requests & Compare Verified Suppliers in Ghana",
+    description: "Source products and services across Accra, Tema, and Ghana. Compare verified supplier proposals and close eligible deals on approved GH₵ credit terms.",
     type: "website",
     images: [{ url: "/og-default.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Bali-Can Limited — B2B Procurement Platform",
-    description: "Ghana's B2B procurement platform. RFQs, competitive quotes, vetted suppliers, company credit.",
+    title: "Post Sourcing Requests & Compare Verified Suppliers in Ghana",
+    description: "Post requirements, compare verified supplier proposals, and manage approved GH₵ credit terms on Balican.",
   },
 };
 
@@ -49,7 +49,7 @@ const jsonLd = {
       name: "Bali-Can Limited",
       url: siteUrl,
       logo: `${siteUrl}/logo.png`,
-      description: "B2B procurement platform for industrial products and services across Ghana.",
+      description: "Ghanaian B2B sourcing marketplace where buyers post requirements, verified suppliers respond, and eligible deals close on approved GH₵ credit terms.",
       address: {
         "@type": "PostalAddress",
         addressLocality: "Accra",
@@ -78,7 +78,7 @@ const jsonLd = {
       name: "Bali-Can Limited",
       url: siteUrl,
       logo: `${siteUrl}/logo.png`,
-      description: "B2B procurement platform for industrial products and services across Ghana. HVAC, electricals, appliances, solar, RFQs, quotes, and company credit.",
+      description: "B2B sourcing marketplace serving Accra, Tema, and businesses across Ghana with verified supplier proposals and approved GH₵ credit terms.",
       address: {
         "@type": "PostalAddress",
         addressLocality: "Accra",
@@ -98,7 +98,7 @@ const jsonLd = {
       "@id": `${siteUrl}#website`,
       url: siteUrl,
       name: "Bali-Can Limited",
-      description: "B2B procurement platform for industrial products and services across Ghana.",
+      description: "Post sourcing requests and compare verified supplier proposals across Ghana.",
       potentialAction: {
         "@type": "SearchAction",
         target: {
@@ -133,21 +133,21 @@ export default async function HomePage() {
         <HeroCarousel />
 
         <section className="noise-overlay border-b border-white/10 bg-navy">
-          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { end: 2500, label: "Products", icon: ShoppingBag },
-                { end: 50, label: "Categories", icon: Gear },
-                { end: 500, label: "Clients Served", icon: Users },
-                { end: 12, label: "Years in Operation", icon: Truck },
-              ].map((stat, i) => (
-                <Reveal key={stat.label} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
-                  <div className="text-center">
-                    <stat.icon size={24} className="mx-auto text-accent" weight="duotone" />
-                    <p className="mt-3 font-display text-4xl font-semibold tracking-tight text-white">
-                      <Counter end={stat.end} suffix="+" duration={2500} />
-                    </p>
-                    <p className="mt-1 text-sm text-zinc-400">{stat.label}</p>
+                { title: "Post requirements", detail: "Products or services, quantities, location, and timeline.", icon: ClipboardText },
+                { title: "Compare proposals", detail: "Review verified suppliers, delivery dates, and commercial terms.", icon: Users },
+                { title: "Agree the deal", detail: "Accept the strongest offer and formalize the agreement.", icon: Handshake },
+                { title: "Buy on approved terms", detail: "Eligible Ghanaian businesses can transact using GH₵ credit terms.", icon: CreditCard },
+              ].map((item, i) => (
+                <Reveal key={item.title} animation="animate-fade-up" className={`animate-delay-${(i + 1) * 100}`}>
+                  <div className="flex h-full gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                    <item.icon size={23} className="mt-0.5 shrink-0 text-blue-300" weight="duotone" />
+                    <div>
+                      <p className="font-display text-base font-semibold text-white">{item.title}</p>
+                      <p className="mt-1 text-sm leading-5 text-zinc-400">{item.detail}</p>
+                    </div>
                   </div>
                 </Reveal>
               ))}
@@ -155,17 +155,17 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
+        <section id="marketplace" className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
           <Reveal>
             <div className="mb-14 flex items-end justify-between">
               <div>
                 <span className="section-label text-accent">
                   <span className="accent-diamond" />
-                  Product Catalog
+                  Explore the Marketplace
                 </span>
-                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Browse, request, or negotiate</h2>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Already know what you need?</h2>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-soft">
-                  Explore our catalog, then submit a procurement request for competitive quotes from vetted suppliers. No hidden pricing.
+                  Browse products and providers as a secondary path, or return to Scout when your requirement needs competitive proposals.
                 </p>
               </div>
               <Link href="/products" className="hidden items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-bold transition-colors sm:flex">
@@ -184,7 +184,7 @@ export default async function HomePage() {
           </Reveal>
         </section>
 
-        <section className="border-t border-border bg-surface">
+        <section id="how-it-works" className="scroll-mt-20 border-t border-border bg-surface">
           <div className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
             <Reveal>
               <div className="mb-14 max-w-2xl">
@@ -200,15 +200,15 @@ export default async function HomePage() {
             <div className="grid gap-6 lg:grid-cols-3">
               {[
                 {
-                  icon: ClipboardText, title: "1. Submit Requirements", desc: "Describe what you need — products, quantities, delivery timeline. Invite specific suppliers or open to all vetted providers.",
-                  color: "bg-accent-soft text-accent-bold", href: "/procurement/requests/new", label: "Start a Request",
+                  icon: ClipboardText, title: "1. Post a Sourcing Request", desc: "Describe the product or service, quantity, delivery location, and timeline. Buyers in Accra, Tema, and across Ghana can start in minutes.",
+                  color: "bg-accent-soft text-accent-bold", href: "/scout/new", label: "Post a Request",
                 },
                 {
-                  icon: Users, title: "2. Compare Quotes", desc: "Vetted suppliers respond with competitive quotes. Review pricing, credit tiers, and supplier profiles side by side.",
-                  color: "bg-accent-soft text-accent-bold", href: "/marketplace/providers", label: "Browse Suppliers",
+                  icon: Users, title: "2. Compare Verified Suppliers", desc: "Review proposals, supplier profiles, delivery dates, and commercial terms side by side before choosing.",
+                  color: "bg-accent-soft text-accent-bold", href: "/marketplace/providers", label: "Meet Suppliers",
                 },
                 {
-                  icon: ShoppingBag, title: "3. Accept & Fulfill", desc: "Select your preferred quote, convert to an order, and track fulfillment. Approved credit? Pay on terms.",
+                  icon: CreditCard, title: "3. Agree Terms & Fulfill", desc: "Accept the best proposal, formalize the deal, and track fulfillment. Approved buyers can transact on GH₵ credit terms.",
                   color: "bg-accent-soft text-accent-bold", href: "/auth/register", label: "Register Your Company",
                 },
               ].map((svc, i) => (
@@ -295,16 +295,16 @@ export default async function HomePage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10">
                 <ShieldCheck size={32} className="text-accent" weight="duotone" />
               </div>
-              <h2 className="mt-6 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Ready to transform your procurement?</h2>
+              <h2 className="mt-6 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Ready to post your requirement?</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-zinc-400">
-                Register your company to submit RFQs, receive competitive quotes, apply for credit, and manage orders — all in one platform.
+                Start a sourcing request, compare verified supplier proposals, and manage the deal through fulfillment on one Ghanaian B2B platform.
               </p>
               <div className="mt-10 flex flex-wrap justify-center gap-4">
-                <Link href="/auth/register" className="btn-shine btn-primary btn-lg">
-                  Register Your Company <ArrowRight size={16} weight="bold" />
+                <Link href="/scout/new" className="btn-shine btn-primary btn-lg">
+                  Post a Sourcing Request <ArrowRight size={16} weight="bold" />
                 </Link>
-                <Link href="/procurement/requests/new" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-white/40 hover:bg-white/10 active:scale-[0.97]">
-                  Submit a Request
+                <Link href="/auth/register?companyType=supplier" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-medium text-zinc-200 transition-all duration-300 hover:border-white/40 hover:bg-white/10 active:scale-[0.97]">
+                  Become a Verified Supplier
                 </Link>
               </div>
             </Reveal>

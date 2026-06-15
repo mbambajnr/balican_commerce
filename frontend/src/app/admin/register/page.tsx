@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { api, setApiToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import { ArrowRight, User, Envelope, Phone, LockKey, ShieldCheck, Key } from "@phosphor-icons/react";
 
@@ -30,7 +30,7 @@ export default function AdminRegisterPage() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      const { token } = await api.post<{ token: string }>("/auth/admin-register", {
+      await api.post("/auth/admin-register", {
         email: form.email,
         password: form.password,
         firstName: form.firstName,
@@ -38,7 +38,6 @@ export default function AdminRegisterPage() {
         phone: form.phone,
         adminKey: form.adminKey,
       });
-      setApiToken(token);
       const result = await signIn("credentials", { email: form.email, password: form.password, redirect: false });
       if (result?.error) throw new Error("Session creation failed");
       toast.success("Admin account created");

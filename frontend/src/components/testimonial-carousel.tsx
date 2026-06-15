@@ -19,7 +19,7 @@ const testimonials = [
   {
     quote: "We submit RFQs regularly and always get competitive pricing within hours. Their product catalog breadth is unmatched in the Ghanaian industrial space.",
     author: "Chidi Nwosu",
-    role: "Procurement Lead, Lagos Industrial Park",
+    role: "Procurement Lead, Tema Industrial Area",
     rating: 5,
   },
   {

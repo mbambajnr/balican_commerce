@@ -3,7 +3,11 @@ import multer from "multer";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { resolveProviderCompany } from "./provider-dashboard";
 import { query } from "../config/db";
-import { storePrivateDocument, getPrivateDocumentStream } from "../services/storage";
+import {
+  storePrivateDocument,
+  getPrivateDocumentAccess,
+  validateDocumentFile,
+} from "../services/storage";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -18,6 +22,27 @@ const VALID_SERVICE_DOC_TYPES = [
   "FOOD_HANDLING_CERTIFICATE", "SECURITY_LICENSE", "METHOD_STATEMENT", "SLA_DOCUMENT",
   "PORTFOLIO", "OTHER_SERVICE",
 ];
+
+async function getDocumentAccessContext(req: AuthRequest): Promise<{ companyId: string | null; isAdmin: boolean }> {
+  const user = await query("SELECT company_id FROM users WHERE id = $1", [req.userId]);
+  return {
+    companyId: user.rows[0]?.company_id || null,
+    isAdmin: req.userRole === "admin" || req.userRole === "super_admin",
+  };
+}
+
+function parseBoolean(value: unknown, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue;
+  return value === true || value === "true" || value === "1";
+}
+
+function safeDownloadFilename(filename: string): string {
+  return filename
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/[\r\n"]/g, "_")
+    .slice(0, 200) || "document";
+}
 
 // Upload document for a product or service
 router.post(
@@ -36,6 +61,15 @@ router.post(
 
       if (!req.file) {
         return res.status(400).json({ error: "Document file is required" });
+      }
+
+      const validationError = validateDocumentFile(
+        req.file.mimetype,
+        req.file.originalname,
+        req.file.buffer
+      );
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
       }
 
       const documentType = req.body.document_type;
@@ -58,14 +92,15 @@ router.post(
         return res.status(404).json({ error: `${offeringType} not found or not owned by your company` });
       }
 
+      const isPublic = parseBoolean(req.body.is_public, true);
       const stored = await storePrivateDocument(req.file.buffer, req.file.originalname, req.file.mimetype);
       const docResult = await query(
         `INSERT INTO offering_documents (company_id, offering_type, offering_id, document_type,
-          file_name, storage_key, mime_type, file_size, uploaded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, document_type, file_name, mime_type, file_size, created_at`,
+          file_name, storage_key, mime_type, file_size, is_public, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id, document_type, file_name, mime_type, file_size, is_public, created_at`,
         [ctx.companyId, offeringType, req.params.id, documentType,
-         req.file.originalname, stored.storageKey, req.file.mimetype, req.file.size, req.userId]
+         req.file.originalname, stored.storageKey, req.file.mimetype, req.file.size, isPublic, req.userId]
       );
 
       res.status(201).json({ document: docResult.rows[0] });
@@ -87,15 +122,29 @@ router.get(
         return res.status(400).json({ error: "Offering type must be PRODUCT or SERVICE" });
       }
 
+      const table = offeringType === "PRODUCT" ? "products" : "services";
+      const offering = await query(
+        `SELECT provider_company_id FROM ${table} WHERE id = $1`,
+        [req.params.id]
+      );
+      if (offering.rows.length === 0) {
+        return res.status(404).json({ error: `${offeringType} not found` });
+      }
+
+      const access = await getDocumentAccessContext(req);
+      const canViewPrivate = access.isAdmin
+        || access.companyId === offering.rows[0].provider_company_id;
+
       const result = await query(
         `SELECT od.id, od.document_type, od.file_name, od.mime_type, od.file_size,
-                od.description, od.created_at,
+                od.description, od.is_public, od.created_at,
                 CONCAT(u.first_name, ' ', u.last_name) as uploaded_by_name
          FROM offering_documents od
          LEFT JOIN users u ON u.id = od.uploaded_by
          WHERE od.offering_type = $1 AND od.offering_id = $2 AND od.is_active = true
+           AND ($3::boolean = true OR od.is_public = true)
          ORDER BY od.created_at DESC`,
-        [offeringType, req.params.id]
+        [offeringType, req.params.id, canViewPrivate]
       );
 
       res.json({ documents: result.rows });
@@ -121,14 +170,28 @@ router.get(
         return res.status(404).json({ error: "Document not found" });
       }
 
-      const fileStream = getPrivateDocumentStream(doc.storage_key);
-      if (!fileStream) {
+      const access = await getDocumentAccessContext(req);
+      if (!doc.is_public && !access.isAdmin && access.companyId !== doc.company_id) {
+        return res.status(403).json({ error: "Not authorized to download this document" });
+      }
+
+      const storageAccess = await getPrivateDocumentAccess(
+        doc.storage_key,
+        safeDownloadFilename(doc.file_name),
+        doc.mime_type
+      );
+      if (!storageAccess) {
         return res.status(404).json({ error: "File not found in storage" });
       }
 
+      if (storageAccess.redirectUrl) {
+        return res.redirect(302, storageAccess.redirectUrl);
+      }
+
       res.setHeader("Content-Type", doc.mime_type || "application/octet-stream");
-      res.setHeader("Content-Disposition", `inline; filename="${doc.file_name}"`);
-      fileStream.pipe(res);
+      res.setHeader("Content-Disposition", `attachment; filename="${safeDownloadFilename(doc.file_name)}"`);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      storageAccess.stream!.pipe(res);
     } catch (err) {
       console.error("Error downloading offering document:", err);
       res.status(500).json({ error: "Failed to download document" });

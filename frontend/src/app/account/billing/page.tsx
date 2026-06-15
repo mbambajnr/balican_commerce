@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import {
-  Building, CreditCard, CurrencyNgn, Bank, ShoppingBag,
+  Building, CreditCard, Coins, Bank, ShoppingBag,
   Cube, FileText, ArrowRight,
 } from "@phosphor-icons/react";
 

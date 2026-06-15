@@ -1,9 +1,8 @@
 import { Router, Request, Response } from "express";
-import jwt from "jsonwebtoken";
 import { query } from "../config/db";
-import { config } from "../config";
 import { authenticate, requireAdmin, AuthRequest } from "../middleware/auth";
 import { computeSupplierScore } from "../services/supplier-scoring";
+import { resolveAuthSession } from "../services/auth-session";
 
 const router = Router();
 
@@ -24,16 +23,14 @@ async function resolvePrice(
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
     try {
-      const decoded = jwt.verify(
-        authHeader.split(" ")[1],
-        config.jwtSecret
-      ) as { userId: string; role: string };
-      if (decoded.role === "admin" || decoded.role === "super_admin") return price;
+      const session = await resolveAuthSession(authHeader.split(" ")[1]);
+      if (!session) return null;
+      if (session.role === "admin" || session.role === "super_admin") return price;
       const userResult = await query(
         `SELECT u.company_id, c.is_buyer, c.company_type
          FROM users u JOIN companies c ON u.company_id = c.id
          WHERE u.id = $1 AND c.status = 'active'`,
-        [decoded.userId]
+        [session.userId]
       );
       if (userResult.rows.length > 0 && (userResult.rows[0].is_buyer || userResult.rows[0].company_type === 'buyer')) {
         return price;
@@ -51,11 +48,8 @@ async function isAdminRequest(req: Request): Promise<boolean> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) return false;
   try {
-    const decoded = jwt.verify(
-      authHeader.split(" ")[1],
-      config.jwtSecret
-    ) as { userId: string; role: string };
-    return decoded.role === "admin" || decoded.role === "super_admin";
+    const session = await resolveAuthSession(authHeader.split(" ")[1]);
+    return session?.role === "admin" || session?.role === "super_admin";
   } catch {
     return false;
   }

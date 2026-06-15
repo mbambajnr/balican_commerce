@@ -28,6 +28,7 @@ async function run() {
     console.log("Email logs migration completed successfully");
   } catch (err) {
     console.error("Email logs migration failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

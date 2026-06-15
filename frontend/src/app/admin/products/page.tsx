@@ -171,9 +171,9 @@ export default function AdminProductsPage() {
             <h2 className="font-display text-lg font-semibold text-ink">Bulk Import</h2>
             <button onClick={downloadTemplate} className="btn btn-sm gap-1"><Download size={14} /> Template</button>
           </div>
-          <p className="text-sm text-soft">Upload CSV or Excel. Required: <code className="text-accent">name</code>, <code className="text-accent">price</code>, <code className="text-accent">category</code>.</p>
+          <p className="text-sm text-soft">Upload CSV or XLSX, up to 5 MB and 1,000 rows. Required: <code className="text-accent">name</code>, <code className="text-accent">price</code>, <code className="text-accent">category</code>.</p>
           <div className="flex items-center gap-4">
-            <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
+            <input type="file" accept=".csv,.xlsx" onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
               className="file:btn file:btn-sm file:mr-3 text-sm text-soft" />
             {bulkFile && (
               <span className="flex items-center gap-2 text-sm text-ink">

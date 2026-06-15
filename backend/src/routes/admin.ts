@@ -8,6 +8,7 @@ import { validate } from "../middleware/validate";
 import { slugify } from "../utils/helpers";
 import { indexProduct, deleteProductIndex, searchProducts } from "../services/elasticsearch";
 import { notifyAndLog } from "../services/notifications";
+import { revokeCompanySessions, revokeUserSessions } from "../services/auth-session";
 import { getStorageDriver, validateImageFile } from "../services/storage";
 import { assessCreditVetting } from "../services/credit-vetting";
 import { assessSupplierCreditVetting } from "../services/supplier-credit-vetting";
@@ -1133,6 +1134,7 @@ router.patch("/companies/:id/approve", authenticate, requireAdmin, validate(appr
       `UPDATE users SET account_status = $1 WHERE company_id = $2`,
       [status, req.params.id]
     );
+    await revokeCompanySessions(req.params.id);
 
     // Note: credit approval is now a separate workflow.
     // Company approval grants portal access only — not credit-sales approval.
@@ -2047,6 +2049,7 @@ router.patch(
         "UPDATE users SET account_status = 'suspended', updated_at = NOW() WHERE id = $1",
         [userId]
       );
+      await revokeUserSessions(userId);
 
       res.json({ success: true });
     } catch (err) {
@@ -2074,6 +2077,7 @@ router.patch(
         "UPDATE users SET account_status = 'active', updated_at = NOW() WHERE id = $1",
         [req.params.id]
       );
+      await revokeUserSessions(req.params.id);
 
       res.json({ success: true });
     } catch (err) {

@@ -22,7 +22,6 @@ declare module "next-auth" {
       is_provider: boolean;
       verification_status: string | null;
     };
-    token: string;
   }
 
   interface User {
@@ -61,6 +60,6 @@ declare module "next-auth/jwt" {
     company_status: string | null;
     is_provider: boolean;
     verification_status: string | null;
-    token: string;
+    backendToken?: string;
   }
 }

@@ -22,6 +22,7 @@ async function run() {
     console.log("✓ Quotation PDF migration applied");
   } catch (err) {
     console.error("Migration error:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

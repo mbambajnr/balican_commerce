@@ -1,10 +1,7 @@
 import { Router, Response, Request, NextFunction } from "express";
 import { z } from "zod";
 import multer from "multer";
-import fs from "fs";
-import path from "path";
 import { query } from "../config/db";
-import { config } from "../config";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import {
@@ -14,7 +11,11 @@ import {
   saveDraft,
   submitVetting,
 } from "../services/company-vetting";
-import { validateDocumentFile, storePrivateDocument, getPrivateDocumentPath } from "../services/storage";
+import {
+  getPrivateDocumentAccess,
+  storePrivateDocument,
+  validateDocumentFile,
+} from "../services/storage";
 
 const router = Router();
 
@@ -135,7 +136,7 @@ router.post(
       const questionKey = req.body.question_key || "registration_document";
 
       // Validate file type
-      const validationError = validateDocumentFile(req.file.mimetype, req.file.originalname);
+      const validationError = validateDocumentFile(req.file.mimetype, req.file.originalname, req.file.buffer);
       if (validationError) return res.status(400).json({ error: validationError });
 
       // Get company
@@ -192,12 +193,22 @@ router.get("/documents/:id/download", authenticate, async (req: AuthRequest, res
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const filePath = getPrivateDocumentPath(doc.storage_key);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found on disk" });
+    const safeFilename = String(doc.original_filename)
+      .split(/[\\/]/)
+      .pop()!
+      .replace(/[\r\n"]/g, "_")
+      .slice(0, 200) || "document";
+    const access = await getPrivateDocumentAccess(doc.storage_key, safeFilename, doc.mime_type);
+    if (!access) return res.status(404).json({ error: "File not found in storage" });
 
-    res.setHeader("Content-Disposition", `attachment; filename="${doc.original_filename}"`);
+    if (access.redirectUrl) {
+      return res.redirect(302, access.redirectUrl);
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
     res.setHeader("Content-Type", doc.mime_type);
-    res.sendFile(filePath);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    access.stream!.pipe(res);
   } catch (err) {
     console.error("Download vetting document error:", err);
     res.status(500).json({ error: "Failed to download document" });

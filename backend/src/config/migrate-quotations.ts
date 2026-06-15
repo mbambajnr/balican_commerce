@@ -93,6 +93,7 @@ async function run() {
     console.log("Quotations migration complete");
   } catch (err) {
     console.error("Quotations migration failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

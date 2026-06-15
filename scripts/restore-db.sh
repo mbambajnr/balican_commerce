@@ -1,44 +1,64 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Silent Star Limited — Database Restore
-# =============================================================================
-# Usage:
-#   ./scripts/restore-db.sh backups/sslplan_db_20260101_120000.sql.gz
-#
-# Restores a PostgreSQL database from a compressed SQL dump.
-# Drops and recreates the database before restoring.
-# =============================================================================
+# Balican Limited — restore an encrypted or plaintext custom-format backup.
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
 
 if [ $# -lt 1 ]; then
-  echo "Usage: $0 <backup-file.sql.gz>"
-  echo ""
-  echo "Available backups:"
-  ls -1 ./backups/sslplan_db_*.sql.gz 2>/dev/null || echo "  (no backups found)"
+  echo "Usage: $0 <backup.dump[.enc]> [target_database]" >&2
   exit 1
 fi
 
-BACKUP_FILE="$1"
+backup_file="$1"
+target_database="${2:-${POSTGRES_DB:-sslplan}}"
+postgres_user="${POSTGRES_USER:-sslplan}"
+force="${RESTORE_FORCE:-false}"
 
-if [ ! -f "$BACKUP_FILE" ]; then
-  echo "ERROR: Backup file not found: $BACKUP_FILE"
+if [ ! -f "$backup_file" ]; then
+  echo "ERROR: Backup file not found: $backup_file" >&2
   exit 1
 fi
 
-echo "========================================"
-echo " Restoring PostgreSQL database"
-echo "========================================"
-echo "Backup: $BACKUP_FILE"
-echo ""
-echo "WARNING: This will DROP and recreate the sslplan database."
-echo "Press Ctrl+C to cancel, or ENTER to continue."
-read -r
+if [ -f "$backup_file.sha256" ]; then
+  (
+    cd "$(dirname "$backup_file")"
+    shasum -a 256 -c "$(basename "$backup_file").sha256"
+  )
+fi
 
-echo "Restoring from backup..."
-gunzip -c "$BACKUP_FILE" | docker compose exec -T postgres psql -U sslplan -d sslplan
+restore_file="$backup_file"
+temporary_file=""
+cleanup() {
+  [ -z "$temporary_file" ] || rm -f "$temporary_file"
+}
+trap cleanup EXIT
 
-echo "Done."
+case "$backup_file" in
+  *.enc)
+    : "${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY is required to decrypt this backup}"
+    temporary_file="$(mktemp "${TMPDIR:-/tmp}/balican-restore.XXXXXX.dump")"
+    openssl enc -d -aes-256-cbc -pbkdf2 \
+      -pass env:BACKUP_ENCRYPTION_KEY \
+      -in "$backup_file" \
+      -out "$temporary_file"
+    restore_file="$temporary_file"
+    ;;
+esac
+
+if [ "$target_database" = "${POSTGRES_DB:-sslplan}" ] && [ "$force" != "true" ]; then
+  echo "ERROR: Set RESTORE_FORCE=true to restore over the primary database." >&2
+  exit 1
+fi
+
+docker compose exec -T postgres dropdb -U "$postgres_user" --if-exists "$target_database"
+docker compose exec -T postgres createdb -U "$postgres_user" "$target_database"
+cat "$restore_file" | docker compose exec -T postgres pg_restore \
+  -U "$postgres_user" \
+  -d "$target_database" \
+  --no-owner \
+  --no-acl \
+  --exit-on-error
+
+echo "Restore complete: $target_database"

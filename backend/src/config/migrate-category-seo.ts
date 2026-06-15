@@ -7,7 +7,7 @@ export async function migrateCategorySeo() {
     `ALTER TABLE categories ADD COLUMN IF NOT EXISTS intro_text TEXT`,
   ];
   for (const sql of checks) {
-    await query(sql).catch((err) => console.error("Migration warning:", err.message));
+    await query(sql);
   }
   console.log("  ✓ category SEO fields (seo_title, seo_description, intro_text)");
 }
@@ -18,5 +18,8 @@ if (require.main === module) {
     await migrateCategorySeo();
     console.log("Done.");
     process.exit(0);
-  })();
+  })().catch((err) => {
+    console.error("Category SEO migration failed:", err);
+    process.exit(1);
+  });
 }

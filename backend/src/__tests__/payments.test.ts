@@ -802,8 +802,8 @@ describe("Paystack Webhook", () => {
 
   beforeAll(async () => {
     // Clean any orders with the hardcoded test references to avoid stale data issues
-    await query("DELETE FROM order_payments WHERE reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001')").catch(() => {});
-    await query("DELETE FROM orders WHERE paystack_reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001')").catch(() => {});
+    await query("DELETE FROM order_payments WHERE reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001','PAYSTACK-TEST-UNDER-001','PAYSTACK-TEST-CURRENCY-001','PAYSTACK-TEST-MISSING-CURRENCY-001')").catch(() => {});
+    await query("DELETE FROM orders WHERE paystack_reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001','PAYSTACK-TEST-UNDER-001','PAYSTACK-TEST-CURRENCY-001','PAYSTACK-TEST-MISSING-CURRENCY-001')").catch(() => {});
 
     webhookOrder = await createTestOrder({
       userId: state.customerUser.id,
@@ -857,7 +857,7 @@ describe("Paystack Webhook", () => {
 
     const payload = {
       event: "charge.success",
-      data: { reference: "PAYSTACK-TEST-VALID-001", amount: 5000000 },
+      data: { reference: "PAYSTACK-TEST-VALID-001", amount: 5000000, currency: "GHS" },
     };
 
     // Compute HMAC over the JSON string (which becomes the raw body via capture middleware)
@@ -900,6 +900,75 @@ describe("Paystack Webhook", () => {
     process.env.NODE_ENV = origEnv;
   });
 
+  test("TC-12e: Underpayment does not mark the order paid", async () => {
+    const order = await createTestOrder({
+      userId: state.customerUser.id,
+      paymentMethod: "paystack",
+      total: 50000,
+      paystackReference: "PAYSTACK-TEST-UNDER-001",
+    });
+    await createTestInvoice({ orderId: order.id, total: 50000, status: "pending_payment" });
+    state.createdOrderIds.push(order.id);
+
+    const res = await request(app)
+      .post("/api/orders/paystack-webhook")
+      .send({
+        event: "charge.success",
+        data: { reference: "PAYSTACK-TEST-UNDER-001", amount: 4999999, currency: "GHS" },
+      });
+
+    expect(res.status).toBe(200);
+    const check = await query("SELECT payment_status, amount_paid FROM orders WHERE id = $1", [order.id]);
+    expect(check.rows[0].payment_status).not.toBe("paid");
+    expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
+  });
+
+  test("TC-12f: Wrong currency does not mark the order paid", async () => {
+    const order = await createTestOrder({
+      userId: state.customerUser.id,
+      paymentMethod: "paystack",
+      total: 50000,
+      paystackReference: "PAYSTACK-TEST-CURRENCY-001",
+    });
+    await createTestInvoice({ orderId: order.id, total: 50000, status: "pending_payment" });
+    state.createdOrderIds.push(order.id);
+
+    const res = await request(app)
+      .post("/api/orders/paystack-webhook")
+      .send({
+        event: "charge.success",
+        data: { reference: "PAYSTACK-TEST-CURRENCY-001", amount: 5000000, currency: "USD" },
+      });
+
+    expect(res.status).toBe(200);
+    const check = await query("SELECT payment_status, amount_paid FROM orders WHERE id = $1", [order.id]);
+    expect(check.rows[0].payment_status).not.toBe("paid");
+    expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
+  });
+
+  test("TC-12g: Missing currency does not mark the order paid", async () => {
+    const order = await createTestOrder({
+      userId: state.customerUser.id,
+      paymentMethod: "paystack",
+      total: 50000,
+      paystackReference: "PAYSTACK-TEST-MISSING-CURRENCY-001",
+    });
+    await createTestInvoice({ orderId: order.id, total: 50000, status: "pending_payment" });
+    state.createdOrderIds.push(order.id);
+
+    const res = await request(app)
+      .post("/api/orders/paystack-webhook")
+      .send({
+        event: "charge.success",
+        data: { reference: "PAYSTACK-TEST-MISSING-CURRENCY-001", amount: 5000000 },
+      });
+
+    expect(res.status).toBe(200);
+    const check = await query("SELECT payment_status, amount_paid FROM orders WHERE id = $1", [order.id]);
+    expect(check.rows[0].payment_status).not.toBe("paid");
+    expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
+  });
+
   // 13. Duplicate Paystack webhook does not double-count payment
   test("TC-13: Duplicate webhook does not double-count payment", async () => {
     // PAYSTACK_SECRET_KEY cleared by beforeEach — webhook skips signature verification
@@ -908,6 +977,7 @@ describe("Paystack Webhook", () => {
       data: {
         reference: "PAYSTACK-TEST-DUP-001",
         amount: 5000000,
+        currency: "GHS",
       },
     };
 

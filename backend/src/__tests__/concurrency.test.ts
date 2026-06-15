@@ -103,7 +103,7 @@ describe("Concurrency hardening", () => {
 
     const payload = {
       event: "charge.success",
-      data: { reference, amount: 5000000 },
+      data: { reference, amount: 5000000, currency: "GHS" },
     };
 
     const [res1, res2] = await Promise.all([
@@ -238,6 +238,7 @@ describe("Concurrency hardening", () => {
   });
 
   test("CON-6: Only one concurrent full payment succeeds", async () => {
+    const referencePrefix = `RACE-FULL-${Date.now()}`;
     const order = await createTestOrder({
       userId: state.customerUser.id,
       paymentMethod: "bank_transfer",
@@ -250,11 +251,11 @@ describe("Concurrency hardening", () => {
       request(app)
         .post(`/api/admin/orders/${order.id}/record-payment`)
         .set("Authorization", `Bearer ${state.adminToken}`)
-        .send({ amount: 10000, method: "bank_transfer", reference: "RACE-FULL-1" }),
+        .send({ amount: 10000, method: "bank_transfer", reference: `${referencePrefix}-1` }),
       request(app)
         .post(`/api/admin/orders/${order.id}/record-payment`)
         .set("Authorization", `Bearer ${state.adminToken}`)
-        .send({ amount: 10000, method: "bank_transfer", reference: "RACE-FULL-2" }),
+        .send({ amount: 10000, method: "bank_transfer", reference: `${referencePrefix}-2` }),
     ]);
 
     const successes = [res1, res2].filter(r => r.status === 200);

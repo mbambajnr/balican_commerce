@@ -65,6 +65,7 @@ async function run() {
     console.log("Company credit migration completed");
   } catch (err) {
     console.error("Company credit migration failed:", err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

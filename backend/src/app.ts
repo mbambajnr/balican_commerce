@@ -1,10 +1,10 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import morgan from "morgan";
 import { config } from "./config";
 import { errorHandler } from "./middleware/errorHandler";
 import { securityHeaders, apiLimiter } from "./middleware/security";
+import { observability } from "./middleware/observability";
 import authRoutes from "./routes/auth";
 import productRoutes from "./routes/products";
 import rfqRoutes from "./routes/rfqs";
@@ -29,17 +29,29 @@ import providerVerificationRoutes from "./routes/provider-verification";
 import superAdminRoutes from "./routes/super-admin";
 import accountStatusRoutes from "./routes/account-status";
 import { providerOfferingsRoutes } from "./routes/provider-offerings";
+import { checkReadiness } from "./services/readiness";
+import { emitCriticalAlert } from "./services/alerts";
+import { withRequestContext } from "./services/logger";
+import {
+  metricsAuthorized,
+  metricsContentType,
+  metricsMiddleware,
+  renderMetrics,
+  setReadinessMetrics,
+} from "./services/metrics";
 
 const app = express();
 
+app.use(observability);
+app.use(metricsMiddleware);
 app.use(securityHeaders);
 app.use(cors({
   origin: [config.frontendUrl, "http://localhost:3000"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+  exposedHeaders: ["X-Request-ID"],
 }));
-app.use(morgan("short"));
 
 // Capture raw body for Paystack webhook HMAC verification.
 // Sets req._body = true so express.json() below skips re-parsing this route.
@@ -51,7 +63,7 @@ app.use((req, _res, next) => {
       (req as any).rawBody = raw;
       try { req.body = JSON.parse(raw); } catch { req.body = {}; }
       (req as any)._body = true;
-      next();
+      withRequestContext(req.requestId, next);
     });
   } else {
     next();
@@ -87,10 +99,31 @@ app.use("/api", accountStatusRoutes);
 app.use("/api", providerOfferingsRoutes);
 
 const uploadsDir = path.resolve(config.upload.dir);
-app.use("/uploads", express.static(uploadsDir));
+app.use("/uploads/products", express.static(path.join(uploadsDir, "products")));
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/api/ready", async (_req, res) => {
+  const readiness = await checkReadiness();
+  setReadinessMetrics(readiness.checks);
+  if (!readiness.ready) {
+    emitCriticalAlert("service.readiness_failed", { checks: readiness.checks });
+  }
+  res.status(readiness.ready ? 200 : 503).json({
+    status: readiness.ready ? "ready" : "not_ready",
+    checks: readiness.checks,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/internal/metrics", async (req, res) => {
+  if (!metricsAuthorized(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  res.setHeader("Content-Type", metricsContentType);
+  res.send(await renderMetrics());
 });
 
 app.use(errorHandler);

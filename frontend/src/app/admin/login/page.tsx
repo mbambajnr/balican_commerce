@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { api, setApiToken } from "@/lib/api";
 import toast from "react-hot-toast";
 import { ArrowRight, Envelope, LockKey, ShieldCheck } from "@phosphor-icons/react";
 
@@ -22,9 +21,6 @@ export default function AdminLoginPage() {
     if (!password) { setErrors((e) => ({ ...e, password: "Password is required" })); return; }
     setSubmitting(true);
     try {
-      const { token } = await api.post<{ token: string }>("/auth/admin-login", { email, password });
-      setApiToken(token);
-      localStorage.setItem("token", token);
       const result = await signIn("credentials", { email, password, redirect: false });
       if (result?.error) throw new Error("Session creation failed");
       toast.success("Welcome back, admin");
@@ -49,18 +45,18 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="input-label">Admin email</label>
+            <label htmlFor="admin-login-email" className="input-label">Admin email</label>
             <div className="relative">
               <Envelope size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input pl-10" placeholder="admin@company.com" />
+              <input id="admin-login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input pl-10" placeholder="admin@company.com" />
             </div>
             {errors.email && <p className="input-error">{errors.email}</p>}
           </div>
           <div>
-            <label className="input-label">Password</label>
+            <label htmlFor="admin-login-password" className="input-label">Password</label>
             <div className="relative">
               <LockKey size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input pl-10" placeholder="Enter your password" />
+              <input id="admin-login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input pl-10" placeholder="Enter your password" />
             </div>
             {errors.password && <p className="input-error">{errors.password}</p>}
           </div>

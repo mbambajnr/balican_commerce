@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
-import { CurrencyNgn, Wrench, ShoppingBag, Stack } from "@phosphor-icons/react";
+import { Coins, Wrench, ShoppingBag, Stack } from "@phosphor-icons/react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import DataTable from "@/components/admin/DataTable";
 import type { Column } from "@/components/admin/DataTable";
@@ -145,7 +145,7 @@ export default function AdminOrdersPage() {
                   onClick={() => setPayModal({ id: o.id, total: Number(o.total), balance: Number(o.balance_due) })}
                   className="btn btn-sm btn-soft gap-1"
                 >
-                  <CurrencyNgn size={14} weight="bold" />
+                  <Coins size={14} weight="bold" />
                   Record Payment
                 </button>
               )}

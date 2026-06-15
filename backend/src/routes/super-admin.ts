@@ -409,16 +409,26 @@ router.get("/documents/:id/download", async (req: AuthRequest, res: Response) =>
     }
 
     const doc = result.rows[0];
-    const { getPrivateDocumentStream } = await import("../services/storage");
-    const fileStream = getPrivateDocumentStream(doc.storage_key);
+    const { getPrivateDocumentAccess } = await import("../services/storage");
+    const safeFilename = String(doc.file_name)
+      .split(/[\\/]/)
+      .pop()!
+      .replace(/[\r\n"]/g, "_")
+      .slice(0, 200) || "document";
+    const access = await getPrivateDocumentAccess(doc.storage_key, safeFilename, doc.mime_type);
 
-    if (!fileStream) {
+    if (!access) {
       return res.status(404).json({ error: "File not found in storage" });
     }
 
+    if (access.redirectUrl) {
+      return res.redirect(302, access.redirectUrl);
+    }
+
     res.setHeader("Content-Type", doc.mime_type || "application/octet-stream");
-    res.setHeader("Content-Disposition", `inline; filename="${doc.file_name}"`);
-    fileStream.pipe(res);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    access.stream!.pipe(res);
   } catch (err) {
     console.error("Error downloading document:", err);
     res.status(500).json({ error: "Failed to download document" });

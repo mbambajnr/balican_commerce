@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import {
-  ArrowLeft, CurrencyNgn, CheckCircle, XCircle, Eye,
+  ArrowLeft, Coins, CheckCircle, XCircle, Eye,
   FileText, Cube, Clock
 } from "@phosphor-icons/react";
 

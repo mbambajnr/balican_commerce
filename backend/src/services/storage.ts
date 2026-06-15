@@ -2,7 +2,16 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import net from "net";
+import { Readable } from "stream";
 import { URL } from "url";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config";
 
 export interface StoredFile {
@@ -16,6 +25,24 @@ export interface StoredFile {
 export interface StorageDriver {
   store(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<StoredFile>;
   delete(storageKey: string): Promise<void>;
+  storePrivate(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<StoredFile>;
+  getPrivateAccess(
+    storageKey: string,
+    filename: string,
+    mimeType: string
+  ): Promise<PrivateFileAccess | null>;
+  importExisting(
+    storageKey: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+    isPrivate: boolean
+  ): Promise<void>;
+  checkReadiness(): Promise<void>;
+}
+
+export interface PrivateFileAccess {
+  stream?: Readable;
+  redirectUrl?: string;
 }
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -44,7 +71,7 @@ export function validateImageFile(mimeType: string, originalName: string): strin
 const ALLOWED_DOCUMENT_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const ALLOWED_DOCUMENT_EXTENSIONS = [".jpg", ".jpeg", ".png", ".pdf"];
 
-export function validateDocumentFile(mimeType: string, originalName: string): string | null {
+export function validateDocumentFile(mimeType: string, originalName: string, buffer?: Buffer): string | null {
   if (!ALLOWED_DOCUMENT_TYPES.includes(mimeType)) {
     return `Unsupported file type: ${mimeType}. Allowed: PDF, JPG, PNG`;
   }
@@ -61,7 +88,27 @@ export function validateDocumentFile(mimeType: string, originalName: string): st
   if (extToMime[ext] !== mimeType) {
     return `MIME type mismatch: extension ${ext} does not match ${mimeType}`;
   }
+  if (buffer && !hasValidDocumentSignature(mimeType, buffer)) {
+    return `File content does not match declared type: ${mimeType}`;
+  }
   return null;
+}
+
+function hasValidDocumentSignature(mimeType: string, buffer: Buffer): boolean {
+  if (mimeType === "application/pdf") {
+    return buffer.subarray(0, 1024).includes(Buffer.from("%PDF-", "ascii"));
+  }
+  if (mimeType === "image/png") {
+    const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    return buffer.length >= pngSignature.length && buffer.subarray(0, pngSignature.length).equals(pngSignature);
+  }
+  if (mimeType === "image/jpeg") {
+    return buffer.length >= 3
+      && buffer[0] === 0xff
+      && buffer[1] === 0xd8
+      && buffer[2] === 0xff;
+  }
+  return false;
 }
 
 export async function storePrivateDocument(
@@ -69,27 +116,15 @@ export async function storePrivateDocument(
   originalName: string,
   mimeType: string
 ): Promise<{ storageKey: string; filename: string; mimeType: string; sizeBytes: number }> {
-  const baseDir = path.resolve(config.upload.dir, "private");
-  const ext = path.extname(originalName).toLowerCase();
-  const hash = crypto.randomBytes(16).toString("hex");
-  const storageKey = `vetting/${hash}${ext}`;
-  const fullPath = path.join(baseDir, storageKey);
-  const dir = path.dirname(fullPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(fullPath, fileBuffer);
-  return { storageKey, filename: originalName, mimeType, sizeBytes: fileBuffer.length };
+  return getStorageDriver().storePrivate(fileBuffer, originalName, mimeType);
 }
 
-export function getPrivateDocumentPath(storageKey: string): string {
-  return path.resolve(config.upload.dir, "private", storageKey);
-}
-
-export function getPrivateDocumentStream(storageKey: string): fs.ReadStream | null {
-  const fullPath = getPrivateDocumentPath(storageKey);
-  if (!fs.existsSync(fullPath)) return null;
-  return fs.createReadStream(fullPath);
+export async function getPrivateDocumentAccess(
+  storageKey: string,
+  filename: string,
+  mimeType: string
+): Promise<PrivateFileAccess | null> {
+  return getStorageDriver().getPrivateAccess(storageKey, filename, mimeType);
 }
 
 class LocalStorageDriver implements StorageDriver {
@@ -130,6 +165,146 @@ class LocalStorageDriver implements StorageDriver {
       fs.unlinkSync(fullPath);
     }
   }
+
+  async storePrivate(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<StoredFile> {
+    const ext = path.extname(originalName).toLowerCase();
+    const hash = crypto.randomBytes(16).toString("hex");
+    const storageKey = `vetting/${hash}${ext}`;
+    const fullPath = path.resolve(this.uploadDir, "private", storageKey);
+    await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.promises.writeFile(fullPath, fileBuffer);
+    return {
+      url: "",
+      storageKey,
+      filename: originalName,
+      mimeType,
+      sizeBytes: fileBuffer.length,
+    };
+  }
+
+  async getPrivateAccess(storageKey: string): Promise<PrivateFileAccess | null> {
+    const fullPath = path.resolve(this.uploadDir, "private", storageKey);
+    try {
+      await fs.promises.access(fullPath, fs.constants.R_OK);
+      return { stream: fs.createReadStream(fullPath) };
+    } catch {
+      return null;
+    }
+  }
+
+  async checkReadiness(): Promise<void> {
+    await fs.promises.mkdir(this.uploadDir, { recursive: true });
+    await fs.promises.access(this.uploadDir, fs.constants.R_OK | fs.constants.W_OK);
+  }
+
+  async importExisting(): Promise<void> {
+    // Existing local files are already in place.
+  }
+}
+
+class S3StorageDriver implements StorageDriver {
+  private client: S3Client;
+  private bucket: string;
+  private publicBaseUrl: string;
+
+  constructor() {
+    const s3 = config.upload.s3;
+    this.bucket = s3.bucket;
+    this.publicBaseUrl = config.upload.publicBaseUrl.replace(/\/+$/, "");
+    this.client = new S3Client({
+      region: s3.region,
+      endpoint: s3.endpoint || undefined,
+      forcePathStyle: s3.forcePathStyle,
+      credentials: s3.accessKeyId
+        ? {
+            accessKeyId: s3.accessKeyId,
+            secretAccessKey: s3.secretAccessKey,
+          }
+        : undefined,
+    });
+  }
+
+  async store(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<StoredFile> {
+    const storageKey = createStorageKey("products", originalName);
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: `public/${storageKey}`,
+      Body: fileBuffer,
+      ContentType: mimeType,
+      CacheControl: "public, max-age=31536000, immutable",
+      ServerSideEncryption: "AES256",
+    }));
+    return {
+      url: `${this.publicBaseUrl}/${storageKey}`,
+      storageKey,
+      filename: originalName,
+      mimeType,
+      sizeBytes: fileBuffer.length,
+    };
+  }
+
+  async delete(storageKey: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({
+      Bucket: this.bucket,
+      Key: `public/${storageKey}`,
+    }));
+  }
+
+  async storePrivate(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<StoredFile> {
+    const storageKey = createStorageKey("vetting", originalName);
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: `private/${storageKey}`,
+      Body: fileBuffer,
+      ContentType: mimeType,
+      ServerSideEncryption: "AES256",
+    }));
+    return {
+      url: "",
+      storageKey,
+      filename: originalName,
+      mimeType,
+      sizeBytes: fileBuffer.length,
+    };
+  }
+
+  async getPrivateAccess(
+    storageKey: string,
+    filename: string,
+    mimeType: string
+  ): Promise<PrivateFileAccess> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: `private/${storageKey}`,
+      ResponseContentType: mimeType || "application/octet-stream",
+      ResponseContentDisposition: `attachment; filename="${sanitizeFilename(filename)}"`,
+    });
+    return {
+      redirectUrl: await getSignedUrl(this.client, command, {
+        expiresIn: config.upload.signedUrlExpiresSeconds,
+      }),
+    };
+  }
+
+  async checkReadiness(): Promise<void> {
+    await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+  }
+
+  async importExisting(
+    storageKey: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+    isPrivate: boolean
+  ): Promise<void> {
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: `${isPrivate ? "private" : "public"}/${storageKey}`,
+      Body: fileBuffer,
+      ContentType: mimeType,
+      CacheControl: isPrivate ? undefined : "public, max-age=31536000, immutable",
+      ServerSideEncryption: "AES256",
+    }));
+  }
 }
 
 let driver: StorageDriver | null = null;
@@ -137,12 +312,37 @@ let driver: StorageDriver | null = null;
 export function getStorageDriver(): StorageDriver {
   if (!driver) {
     switch (config.upload.driver) {
+      case "s3":
+        driver = new S3StorageDriver();
+        break;
       case "local":
       default:
         driver = new LocalStorageDriver();
     }
   }
   return driver;
+}
+
+function createStorageKey(prefix: string, originalName: string): string {
+  const ext = path.extname(originalName).toLowerCase();
+  return `${prefix}/${crypto.randomBytes(16).toString("hex")}${ext}`;
+}
+
+function sanitizeFilename(filename: string): string {
+  return filename.split(/[\\/]/).pop()!.replace(/[\r\n"]/g, "_").slice(0, 200) || "document";
+}
+
+export function resetStorageDriverForTests(): void {
+  driver = null;
+}
+
+export async function importExistingStorageObject(
+  storageKey: string,
+  fileBuffer: Buffer,
+  mimeType: string,
+  isPrivate: boolean
+): Promise<void> {
+  await getStorageDriver().importExisting(storageKey, fileBuffer, mimeType, isPrivate);
 }
 
 const PRIVATE_IP_PATTERNS = [

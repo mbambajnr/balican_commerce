@@ -77,7 +77,7 @@ router.post(
         return res.status(400).json({ error: "Invalid document type" });
       }
 
-      const validationError = validateDocumentFile(req.file.mimetype, req.file.originalname);
+      const validationError = validateDocumentFile(req.file.mimetype, req.file.originalname, req.file.buffer);
       if (validationError) {
         return res.status(400).json({ error: validationError });
       }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth";
 
 interface AccountStatus {
   account_status: string;
@@ -136,12 +137,13 @@ const STATUS_CONFIGS: Record<string, {
 
 export default function AccountStatusPage() {
   const router = useRouter();
+  const { user, loading: authLoading, logout } = useAuth();
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.push("/auth/login"); return; }
+    if (authLoading) return;
+    if (!user) { router.push("/auth/login"); return; }
 
     api.getAccountStatus()
       .then(setStatus)
@@ -150,7 +152,7 @@ export default function AccountStatusPage() {
         setStatus(null);
       })
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [authLoading, router, user]);
 
   if (loading) {
     return (
@@ -272,7 +274,7 @@ export default function AccountStatusPage() {
           {/* Logout */}
           <div className="mt-6 text-center border-t pt-4">
             <button
-              onClick={() => { localStorage.removeItem("token"); router.push("/auth/login"); }}
+              onClick={logout}
               className="text-sm text-gray-400 hover:text-gray-600"
             >
               Log out

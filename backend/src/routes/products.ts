@@ -1,14 +1,17 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
-import * as XLSX from "xlsx";
-import jwt from "jsonwebtoken";
 import { query } from "../config/db";
 import { authenticate, requireAdmin, AuthRequest } from "../middleware/auth";
-import { config } from "../config";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { slugify } from "../utils/helpers";
 import { searchProducts, indexProduct, deleteProductIndex } from "../services/elasticsearch";
+import {
+  parseSpreadsheet,
+  SpreadsheetParseError,
+  SPREADSHEET_MAX_FILE_SIZE,
+} from "../services/spreadsheet";
+import { resolveAuthSession } from "../services/auth-session";
 
 export async function resolvePricingContext(req: Request): Promise<{
   companyId: string | null;
@@ -21,17 +24,20 @@ export async function resolvePricingContext(req: Request): Promise<{
     if (!header || !header.startsWith("Bearer ")) {
       return { companyId: null, groupId: null, canSeePrices: false, isAdmin: false };
     }
-    const decoded = jwt.verify(header.split(" ")[1], config.jwtSecret) as { userId: string; role: string };
+    const session = await resolveAuthSession(header.split(" ")[1]);
+    if (!session) {
+      return { companyId: null, groupId: null, canSeePrices: false, isAdmin: false };
+    }
     const userResult = await query(
       `SELECT u.company_id, u.account_status, c.customer_group_id, c.status as company_status
        FROM users u LEFT JOIN companies c ON u.company_id = c.id WHERE u.id = $1`,
-      [decoded.userId]
+      [session.userId]
     );
     if (userResult.rows.length === 0) {
       return { companyId: null, groupId: null, canSeePrices: false, isAdmin: false };
     }
     const row = userResult.rows[0];
-    const isAdmin = decoded.role === "admin";
+    const isAdmin = session.role === "admin" || session.role === "super_admin";
     const canSeePrices = isAdmin || (
       row.account_status === "active"
       && row.company_id
@@ -65,7 +71,7 @@ export async function applyCustomPricing(products: any[], companyId: string | nu
   });
 }
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: SPREADSHEET_MAX_FILE_SIZE } });
 const router = Router();
 
 router.get("/", async (req: Request, res: Response) => {
@@ -503,9 +509,7 @@ router.post("/bulk-import", authenticate, requireAdmin, upload.single("file"), a
     const file = (req as any).file as Express.Multer.File | undefined;
     if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-    const workbook = XLSX.read(file.buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet);
+    const rows = await parseSpreadsheet(file);
 
     if (rows.length === 0) return res.status(400).json({ error: "File is empty" });
 
@@ -582,6 +586,9 @@ router.post("/bulk-import", authenticate, requireAdmin, upload.single("file"), a
 
     res.json(results);
   } catch (err) {
+    if (err instanceof SpreadsheetParseError || err instanceof multer.MulterError) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error("Bulk import error:", err);
     res.status(500).json({ error: "Bulk import failed" });
   }

@@ -1,17 +1,35 @@
+import "./instrument";
 import app from "./app";
-import { config } from "./config";
+import { assertProductionConfig, config } from "./config";
 import { ensureIndices } from "./services/elasticsearch";
+import { logger } from "./services/logger";
 
 const start = async () => {
+  assertProductionConfig();
+
   try {
     await ensureIndices();
   } catch (err) {
-    console.warn("ES indices not available — search will be degraded:", (err as Error).message);
+    logger.warn("search.elasticsearch_degraded", { error: err });
   }
 
   app.listen(config.port, () => {
-    console.log(`Server running on port ${config.port}`);
+    logger.info("service.started", { port: config.port });
   });
 };
 
-start();
+start().catch((err) => {
+  logger.error("service.startup_failed", { error: err });
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  void import("@sentry/node").then((Sentry) => Sentry.captureException(reason));
+  logger.error("process.unhandled_rejection", { error: reason });
+});
+
+process.on("uncaughtException", (err) => {
+  void import("@sentry/node").then((Sentry) => Sentry.captureException(err));
+  logger.error("process.uncaught_exception", { error: err });
+  process.exit(1);
+});
