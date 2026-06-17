@@ -76,6 +76,11 @@ export default function MarketplaceProviderDetailPageClient({ id }: { id: string
               {provider.verification_badge && (
                 <SealCheck size={20} className="text-accent" weight="fill" />
               )}
+              {provider.verified_until && (
+                <span className="badge badge-green">
+                  Balican Verified until {new Date(provider.verified_until).toLocaleDateString()}
+                </span>
+              )}
               <span className="badge badge-blue capitalize">{providerTypeLabel}</span>
               {provider.credit_tier && provider.credit_tier !== "unrated" && provider.credit_tier !== "basic" && (
                 <span className={`badge ${

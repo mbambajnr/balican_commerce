@@ -354,6 +354,12 @@ describe("Provider Verification", () => {
     const docs = statusRes.body.documents || [];
 
     if (docs.length > 0) {
+      const waiver = await request(app)
+        .post(`${API}/companies/${providerCompany.id}/verification-fee/waive`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .send({ days: 30, reason: "Test waiver" });
+      expect(waiver.status).toBe(200);
+
       const res = await request(app)
         .post(`/api/provider/verification/submit`)
         .set("Authorization", `Bearer ${providerToken}`);

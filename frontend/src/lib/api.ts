@@ -751,7 +751,24 @@ export const api = {
 
   // Provider Verification
   getVerificationStatus: () =>
-    request<{ companyId: string; verificationStatus: string; documents: any[] }>("/provider/verification/status"),
+    request<{
+      companyId: string;
+      verificationStatus: string;
+      verifiedUntil?: string | null;
+      feeWaiver?: { active: boolean; waivedUntil?: string | null; reason?: string | null };
+      verificationFee?: {
+        amount: number;
+        currency: string;
+        renewalPeriodDays: number;
+        gracePeriodDays: number;
+        latestPayment: any | null;
+        canSubmitForReview: boolean;
+      };
+      documents: any[];
+    }>("/provider/verification/status"),
+
+  initVerificationPayment: () =>
+    request<{ authorizationUrl: string; reference: string; alreadyPaid?: boolean }>("/provider/verification/payment/init", { method: "POST" }),
 
   uploadVerificationDocument: async (documentType: string, file: File) => {
     const formData = new FormData();
@@ -814,6 +831,27 @@ export const api = {
   superClearPaymentSuspend: (id: string) =>
     request<{ message: string }>(`/super-admin/companies/${id}/clear-payment-suspend`, { method: "POST" }),
 
+  getVerificationFeeSettings: () =>
+    request<any>("/super-admin/verification-fee/settings"),
+
+  updateVerificationFeeSettings: (data: { amount: number; renewalPeriodDays: number; gracePeriodDays: number }) =>
+    request<any>("/super-admin/verification-fee/settings", { method: "PATCH", body: JSON.stringify(data) }),
+
+  waiveVerificationFee: (id: string, data: { days?: number; reason?: string }) =>
+    request<{ company: any }>(`/super-admin/companies/${id}/verification-fee/waive`, { method: "POST", body: JSON.stringify(data) }),
+
+  expireLapsedVerifications: () =>
+    request<{ lapsed: number }>("/super-admin/verification/expire-lapsed", { method: "POST" }),
+
+  getCommissionRates: () =>
+    request<{ rates: any[] }>("/super-admin/commission-rates"),
+
+  saveCommissionRate: (data: { categoryId?: string | null; ratePercent: number; isActive?: boolean }) =>
+    request<{ rate: any }>("/super-admin/commission-rates", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCommissionRate: (id: string, data: { ratePercent?: number; isActive?: boolean }) =>
+    request<{ rate: any }>(`/super-admin/commission-rates/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
   getSuperAdminDocuments: (params?: { status?: string; page?: string; limit?: string }) => {
     const qs = new URLSearchParams((params ?? {}) as any).toString();
     return request<{ documents: any[]; total: number; page: number; limit: number }>(`/super-admin/documents${qs ? `?${qs}` : ""}`);
@@ -860,6 +898,16 @@ export const api = {
   // Provider Readiness
   getProviderReadiness: () =>
     request<{ products: any[]; services: any[] }>("/provider/readiness"),
+
+  getProviderCommissions: (params?: { page?: string; limit?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ summary: any; commissions: any[]; pagination: any }>(`/provider/commissions${qs ? `?${qs}` : ""}`);
+  },
+
+  getAdminCommissions: (params?: { days?: string; providerCompanyId?: string; status?: string; format?: string }) => {
+    const qs = new URLSearchParams((params ?? {}) as any).toString();
+    return request<{ summary: any; commissions: any[] }>(`/admin/commissions${qs ? `?${qs}` : ""}`);
+  },
 
   // Recommendation Events
   trackRecommendationEvent: (data: {

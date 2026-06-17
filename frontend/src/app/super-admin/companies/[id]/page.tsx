@@ -99,6 +99,23 @@ export default function SuperAdminCompanyDetail() {
     }
   };
 
+  const handleWaiveFee = async () => {
+    setActionLoading("waive-fee");
+    setError("");
+    setMessage("");
+    try {
+      await api.waiveVerificationFee(id, { days: 365, reason: reason || "Founder onboarding waiver" });
+      setMessage("Verification fee waived");
+      setReason("");
+      const updated = await api.getSuperAdminCompany(id);
+      setCompany(updated);
+    } catch (e: any) {
+      setError(e.message || "Failed to waive verification fee");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
   if (loading) return <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto" /></div>;
   if (error && !company) return <div className="text-red-500 text-center py-12">{error}</div>;
   if (!company) return <div className="text-center py-12 text-gray-400">Company not found</div>;
@@ -184,6 +201,7 @@ export default function SuperAdminCompanyDetail() {
               {[
                 ["Status", company.status],
                 ["Verification", company.verification_status || "—"],
+                ["Verified Until", company.verified_until ? new Date(company.verified_until).toLocaleDateString() : "—"],
                 ["Company Type", company.company_type?.replace(/_/g, " ")],
                 ["Is Provider", company.is_provider ? "Yes" : "No"],
                 ["Created", new Date(company.created_at).toLocaleString()],
@@ -200,6 +218,49 @@ export default function SuperAdminCompanyDetail() {
               ))}
             </dl>
           </div>
+
+          {isProvider && (
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold mb-2">Balican Verified Fee</h2>
+                  <dl className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <dt className="text-gray-400">Latest Payment</dt>
+                      <dd className="font-medium">
+                        {company.latest_verification_fee_status
+                          ? `${company.latest_verification_fee_status} · GH₵ ${Number(company.latest_verification_fee_amount || 0).toLocaleString()}`
+                          : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-400">Paid At</dt>
+                      <dd className="font-medium">
+                        {company.latest_verification_fee_paid_at ? new Date(company.latest_verification_fee_paid_at).toLocaleString() : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-400">Waived Until</dt>
+                      <dd className="font-medium">
+                        {company.verification_fee_waived_until ? new Date(company.verification_fee_waived_until).toLocaleDateString() : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-400">Waiver Reason</dt>
+                      <dd className="font-medium">{company.verification_fee_waiver_reason || "—"}</dd>
+                    </div>
+                  </dl>
+                </div>
+                <button
+                  onClick={handleWaiveFee}
+                  disabled={actionLoading === "waive-fee"}
+                  className="px-3 py-2 text-xs rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {actionLoading === "waive-fee" ? "Waiving..." : "Waive 365 Days"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Verification Documents */}
           {isProvider && company.verification_documents && company.verification_documents.length > 0 && (

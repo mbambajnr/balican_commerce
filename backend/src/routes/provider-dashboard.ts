@@ -632,5 +632,49 @@ router.get("/provider/readiness", authenticate, async (req: AuthRequest, res: Re
   }
 });
 
+router.get("/provider/commissions", authenticate, requireCompanyActive, async (req: AuthRequest, res: Response) => {
+  try {
+    const ctx = await resolveProviderCompany(req, res);
+    if (!ctx) return;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const offset = (page - 1) * limit;
+
+    const [count, summary, rows] = await Promise.all([
+      query("SELECT COUNT(*)::int FROM commission_ledger WHERE provider_company_id = $1", [ctx.companyId]),
+      query(
+        `SELECT COALESCE(SUM(base_amount), 0)::numeric(12,2) as base_total,
+                COALESCE(SUM(commission_amount), 0)::numeric(12,2) as commission_total
+         FROM commission_ledger WHERE provider_company_id = $1`,
+        [ctx.companyId]
+      ),
+      query(
+        `SELECT cl.*, o.order_number, buyer.name as buyer_name, cat.name as category_name
+         FROM commission_ledger cl
+         JOIN orders o ON o.id = cl.order_id
+         JOIN companies buyer ON buyer.id = cl.buyer_company_id
+         LEFT JOIN categories cat ON cat.id = cl.category_id
+         WHERE cl.provider_company_id = $1
+         ORDER BY cl.accrued_at DESC
+         LIMIT $2 OFFSET $3`,
+        [ctx.companyId, limit, offset]
+      ),
+    ]);
+
+    const total = count.rows[0].count;
+    res.json({
+      summary: {
+        baseTotal: Number(summary.rows[0].base_total),
+        commissionTotal: Number(summary.rows[0].commission_total),
+      },
+      commissions: rows.rows,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    console.error("Provider commissions error:", err);
+    res.status(500).json({ error: "Failed to fetch commissions" });
+  }
+});
+
 export default router;
 export { resolveProviderCompany };

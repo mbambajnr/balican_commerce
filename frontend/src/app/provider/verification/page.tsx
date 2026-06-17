@@ -31,6 +31,7 @@ export default function ProviderVerificationPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [docType, setDocType] = useState(DOCUMENT_TYPE_OPTIONS[0].value);
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -90,11 +91,37 @@ export default function ProviderVerificationPage() {
     }
   };
 
+  const handlePayment = async () => {
+    setPaying(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const result = await api.initVerificationPayment();
+      if (result.alreadyPaid) {
+        setSuccessMsg("Verification fee already paid. You can submit for review.");
+        loadStatus();
+        return;
+      }
+      if (!result.authorizationUrl) {
+        throw new Error("Payment authorization URL was not returned");
+      }
+      window.location.href = result.authorizationUrl;
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setPaying(false);
+    }
+  };
+
   if (loading) return <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto" /></div>;
 
   const meta = STATUS_META[status?.verificationStatus] || STATUS_META.not_started;
   const canSubmit = ["not_started", "required", "changes_requested"].includes(status?.verificationStatus);
   const docs = status?.documents || [];
+  const fee = status?.verificationFee;
+  const feePaid = fee?.latestPayment?.status === "paid";
+  const feeWaived = status?.feeWaiver?.active;
+  const canSubmitForReview = Boolean(fee?.canSubmitForReview);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -106,6 +133,9 @@ export default function ProviderVerificationPage() {
           <span className={`text-sm font-medium ${meta.color}`}>{meta.label}</span>
         </div>
         <p className="text-sm text-gray-500">{meta.desc}</p>
+        {status?.verifiedUntil && (
+          <p className="text-xs text-green-700 mt-2">Balican Verified until {new Date(status.verifiedUntil).toLocaleDateString()}</p>
+        )}
       </div>
 
       {error && (
@@ -114,6 +144,42 @@ export default function ProviderVerificationPage() {
       {successMsg && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{successMsg}</div>
       )}
+
+      {/* Payment Section */}
+      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold mb-1">Balican Verified Fee</h2>
+            <p className="text-sm text-gray-500">
+              Pay once per verification period before your documents enter admin review.
+            </p>
+            {fee && (
+              <p className="text-sm font-medium mt-2">GH₵ {Number(fee.amount).toLocaleString()} / {fee.renewalPeriodDays} days</p>
+            )}
+            {feeWaived && (
+              <p className="text-xs text-amber-700 mt-2">
+                Fee waived until {new Date(status.feeWaiver.waivedUntil).toLocaleDateString()}
+                {status.feeWaiver.reason ? ` — ${status.feeWaiver.reason}` : ""}
+              </p>
+            )}
+            {feePaid && (
+              <p className="text-xs text-green-700 mt-2">
+                Paid {fee.latestPayment.paid_at ? new Date(fee.latestPayment.paid_at).toLocaleString() : ""}
+              </p>
+            )}
+            {fee?.latestPayment?.status === "pending" && (
+              <p className="text-xs text-blue-700 mt-2">Payment initialized. Complete checkout or wait for Paystack confirmation.</p>
+            )}
+          </div>
+          <button
+            onClick={handlePayment}
+            disabled={paying || feePaid || feeWaived || status?.verificationStatus === "approved"}
+            className="shrink-0 px-4 py-2 bg-accent text-white rounded-lg text-sm hover:bg-accent-bold disabled:opacity-50"
+          >
+            {paying ? "Starting..." : feePaid || feeWaived ? "Payment Complete" : "Pay Fee"}
+          </button>
+        </div>
+      </div>
 
       {/* Upload Section */}
       <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
@@ -187,13 +253,17 @@ export default function ProviderVerificationPage() {
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <button
           onClick={handleSubmit}
-          disabled={submitting || !canSubmit || docs.length === 0}
+          disabled={submitting || !canSubmit || docs.length === 0 || !canSubmitForReview}
           className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
         >
           {submitting ? "Submitting..." : "Submit for Review"}
         </button>
         <p className="text-xs text-gray-400 text-center mt-2">
-          {docs.length === 0 ? "Upload at least one document before submitting" : "Once submitted, an admin will review your documents"}
+          {docs.length === 0
+            ? "Upload at least one document before submitting"
+            : !canSubmitForReview
+              ? "Pay the Balican Verified fee or request a waiver before submitting"
+              : "Once submitted, an admin will review your documents"}
         </p>
       </div>
     </div>

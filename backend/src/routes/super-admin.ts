@@ -142,10 +142,21 @@ router.get("/companies/:id", async (req: AuthRequest, res: Response) => {
           'company_role', u.company_role, 'account_status', u.account_status
         ) ORDER BY u.created_at) FROM users u WHERE u.company_id = c.id) as users,
         cs.status as subscription_status, cs.current_period_end, cs.trial_end_at,
-        p.name as plan_name, p.display_name as plan_display_name
+        p.name as plan_name, p.display_name as plan_display_name,
+        vfp.status as latest_verification_fee_status,
+        vfp.amount as latest_verification_fee_amount,
+        vfp.currency as latest_verification_fee_currency,
+        vfp.paid_at as latest_verification_fee_paid_at
       FROM companies c
       LEFT JOIN company_subscriptions cs ON cs.company_id = c.id
       LEFT JOIN plans p ON p.id = cs.plan_id
+      LEFT JOIN LATERAL (
+        SELECT status, amount, currency, paid_at
+        FROM verification_fee_payments
+        WHERE company_id = c.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) vfp ON TRUE
       WHERE c.id = $1`,
       [req.params.id]
     );
@@ -180,7 +191,12 @@ router.post("/companies/:id/approve", async (req: AuthRequest, res: Response) =>
       const shouldVerify = c.is_provider && (c.verification_status === "submitted" || c.verification_status === "under_review");
       if (shouldVerify) {
         await client.query(
-          `UPDATE companies SET verification_status = 'approved' WHERE id = $1`,
+          `UPDATE companies
+           SET verification_status = 'approved',
+               verified_until = CURRENT_DATE + (
+                 SELECT renewal_period_days FROM verification_fee_settings WHERE id = TRUE
+               )::int
+           WHERE id = $1`,
           [req.params.id]
         );
       }
@@ -375,7 +391,11 @@ router.get("/documents", async (req: AuthRequest, res: Response) => {
     const offset = (page - 1) * limit;
 
     const countResult = await query(
-      `SELECT COUNT(*)::int FROM verification_documents WHERE status = $1`,
+      `SELECT COUNT(*)::int
+       FROM verification_documents vd
+       JOIN companies c ON c.id = vd.company_id
+       WHERE vd.status = $1
+         AND c.verification_status IN ('submitted', 'under_review')`,
       [status]
     );
     const total = countResult.rows[0].count;
@@ -387,6 +407,7 @@ router.get("/documents", async (req: AuthRequest, res: Response) => {
        JOIN companies c ON c.id = vd.company_id
        LEFT JOIN users u ON u.id = vd.uploaded_by
        WHERE vd.status = $1
+         AND c.verification_status IN ('submitted', 'under_review')
        ORDER BY vd.created_at ASC LIMIT $2 OFFSET $3`,
       [status, limit, offset]
     );
@@ -462,7 +483,12 @@ router.post("/documents/:id/approve", async (req: AuthRequest, res: Response) =>
     );
     if (pendingResult.rows[0].count === 0) {
       await query(
-        `UPDATE companies SET verification_status = 'approved' WHERE id = $1 AND verification_status IN ('submitted','under_review')`,
+        `UPDATE companies
+         SET verification_status = 'approved',
+             verified_until = CURRENT_DATE + (
+               SELECT renewal_period_days FROM verification_fee_settings WHERE id = TRUE
+             )::int
+         WHERE id = $1 AND verification_status IN ('submitted','under_review')`,
         [company_id]
       );
       await createActivityLog({
@@ -642,6 +668,231 @@ router.get("/activity-logs", async (req: AuthRequest, res: Response) => {
   } catch (err) {
     console.error("Error fetching activity logs:", err);
     res.status(500).json({ error: "Failed to fetch activity logs" });
+  }
+});
+
+// ──────────────────────────────────────────────────
+// Balican Verified fee settings and waivers
+// ──────────────────────────────────────────────────
+router.get("/verification-fee/settings", async (_req: AuthRequest, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT amount, currency, renewal_period_days, grace_period_days, updated_at
+       FROM verification_fee_settings WHERE id = TRUE`
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching verification fee settings:", err);
+    res.status(500).json({ error: "Failed to fetch verification fee settings" });
+  }
+});
+
+router.patch("/verification-fee/settings", async (req: AuthRequest, res: Response) => {
+  try {
+    const amount = req.body.amount;
+    const renewalPeriodDays = req.body.renewalPeriodDays;
+    const gracePeriodDays = req.body.gracePeriodDays;
+
+    if (amount === undefined || Number(amount) < 0) {
+      return res.status(400).json({ error: "amount must be zero or greater" });
+    }
+    if (!renewalPeriodDays || Number(renewalPeriodDays) <= 0) {
+      return res.status(400).json({ error: "renewalPeriodDays must be greater than zero" });
+    }
+    if (gracePeriodDays === undefined || Number(gracePeriodDays) < 0) {
+      return res.status(400).json({ error: "gracePeriodDays must be zero or greater" });
+    }
+
+    const result = await query(
+      `UPDATE verification_fee_settings
+       SET amount = $1, currency = 'GHS', renewal_period_days = $2,
+           grace_period_days = $3, updated_by = $4, updated_at = NOW()
+       WHERE id = TRUE
+       RETURNING amount, currency, renewal_period_days, grace_period_days, updated_at`,
+      [amount, renewalPeriodDays, gracePeriodDays, req.userId]
+    );
+
+    await createAuditLog({
+      adminUserId: req.userId!,
+      action: "verification_fee_settings_updated",
+      targetType: "verification_fee_settings",
+      targetId: "default",
+      metadata: { amount, renewalPeriodDays, gracePeriodDays },
+    });
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error updating verification fee settings:", err);
+    res.status(500).json({ error: "Failed to update verification fee settings" });
+  }
+});
+
+router.post("/companies/:id/verification-fee/waive", async (req: AuthRequest, res: Response) => {
+  try {
+    const reason = req.body.reason || "Founder onboarding waiver";
+    const days = Math.max(1, Number(req.body.days || 365));
+    const result = await query(
+      `UPDATE companies
+       SET verification_fee_waived_until = CURRENT_DATE + $2::int,
+           verification_fee_waived_by = $3,
+           verification_fee_waived_at = NOW(),
+           verification_fee_waiver_reason = $4
+       WHERE id = $1
+       RETURNING id, verification_fee_waived_until, verification_fee_waiver_reason`,
+      [req.params.id, days, req.userId, reason]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Company not found" });
+
+    await createAuditLog({
+      adminUserId: req.userId!,
+      action: "verification_fee_waived",
+      targetType: "company",
+      targetId: req.params.id,
+      reason,
+      metadata: { days, waivedUntil: result.rows[0].verification_fee_waived_until },
+    });
+    await createActivityLog({
+      companyId: req.params.id,
+      userId: req.userId,
+      action: "verification_fee_waived",
+      description: reason,
+      metadata: { days, waivedUntil: result.rows[0].verification_fee_waived_until },
+    });
+
+    res.json({ company: result.rows[0] });
+  } catch (err) {
+    console.error("Error waiving verification fee:", err);
+    res.status(500).json({ error: "Failed to waive verification fee" });
+  }
+});
+
+router.post("/verification/expire-lapsed", async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await query(
+      `UPDATE companies c
+       SET verification_status = 'lapsed'
+       FROM verification_fee_settings s
+       WHERE c.verification_status = 'approved'
+         AND c.verified_until IS NOT NULL
+         AND c.verified_until < CURRENT_DATE - s.grace_period_days::int
+       RETURNING c.id`
+    );
+
+    for (const row of result.rows) {
+      await createActivityLog({
+        companyId: row.id,
+        userId: req.userId,
+        action: "verification_lapsed",
+        description: "Balican Verified status lapsed after renewal grace period",
+      });
+    }
+
+    res.json({ lapsed: result.rows.length });
+  } catch (err) {
+    console.error("Error expiring lapsed verifications:", err);
+    res.status(500).json({ error: "Failed to expire lapsed verifications" });
+  }
+});
+
+// ──────────────────────────────────────────────────
+// Commission rate management
+// ──────────────────────────────────────────────────
+router.get("/commission-rates", async (_req: AuthRequest, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT cr.*, c.name as category_name
+       FROM commission_rates cr
+       LEFT JOIN categories c ON c.id = cr.category_id
+       ORDER BY cr.category_id NULLS FIRST, c.name ASC`
+    );
+    res.json({ rates: result.rows });
+  } catch (err) {
+    console.error("Error fetching commission rates:", err);
+    res.status(500).json({ error: "Failed to fetch commission rates" });
+  }
+});
+
+router.post("/commission-rates", async (req: AuthRequest, res: Response) => {
+  try {
+    const categoryId = req.body.categoryId || null;
+    const ratePercent = Number(req.body.ratePercent);
+    if (!Number.isFinite(ratePercent) || ratePercent < 0 || ratePercent > 100) {
+      return res.status(400).json({ error: "ratePercent must be between 0 and 100" });
+    }
+
+    if (!categoryId) {
+      const global = await query(
+        `UPDATE commission_rates
+         SET rate_percent = $1, is_active = COALESCE($2, TRUE), created_by = $3, updated_at = NOW()
+         WHERE category_id IS NULL
+         RETURNING *`,
+        [ratePercent, req.body.isActive !== false, req.userId]
+      );
+      await createAuditLog({
+        adminUserId: req.userId!,
+        action: "commission_rate_upserted",
+        targetType: "commission_rate",
+        targetId: global.rows[0].id,
+        metadata: { categoryId: null, ratePercent },
+      });
+      return res.status(201).json({ rate: global.rows[0] });
+    }
+
+    const result = await query(
+      `INSERT INTO commission_rates (category_id, rate_percent, is_active, created_by)
+       VALUES ($1, $2, COALESCE($3, TRUE), $4)
+       ON CONFLICT (category_id) WHERE category_id IS NOT NULL
+       DO UPDATE SET rate_percent = EXCLUDED.rate_percent,
+                     is_active = EXCLUDED.is_active,
+                     updated_at = NOW()
+       RETURNING *`,
+      [categoryId, ratePercent, req.body.isActive !== false, req.userId]
+    );
+
+    await createAuditLog({
+      adminUserId: req.userId!,
+      action: "commission_rate_upserted",
+      targetType: "commission_rate",
+      targetId: result.rows[0].id,
+      metadata: { categoryId, ratePercent },
+    });
+    res.status(201).json({ rate: result.rows[0] });
+  } catch (err) {
+    console.error("Error saving commission rate:", err);
+    res.status(500).json({ error: "Failed to save commission rate" });
+  }
+});
+
+router.patch("/commission-rates/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+    if (req.body.ratePercent !== undefined) {
+      const ratePercent = Number(req.body.ratePercent);
+      if (!Number.isFinite(ratePercent) || ratePercent < 0 || ratePercent > 100) {
+        return res.status(400).json({ error: "ratePercent must be between 0 and 100" });
+      }
+      fields.push(`rate_percent = $${idx++}`);
+      values.push(ratePercent);
+    }
+    if (req.body.isActive !== undefined) {
+      fields.push(`is_active = $${idx++}`);
+      values.push(Boolean(req.body.isActive));
+    }
+    if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
+    fields.push("updated_at = NOW()");
+    values.push(req.params.id);
+
+    const result = await query(
+      `UPDATE commission_rates SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Commission rate not found" });
+    res.json({ rate: result.rows[0] });
+  } catch (err) {
+    console.error("Error updating commission rate:", err);
+    res.status(500).json({ error: "Failed to update commission rate" });
   }
 });
 

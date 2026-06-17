@@ -20,6 +20,7 @@ const allNavItems = [
   { label: "RFQs", href: "/admin/rfqs", icon: FileText },
   { label: "Quotations", href: "/admin/quotations", icon: FileText },
   { label: "Payments", href: "/admin/payments", icon: CurrencyCircleDollar },
+  { label: "Commissions", href: "/admin/commissions", icon: CurrencyCircleDollar },
   { label: "Bank Transfers", href: "/admin/bank-transfers", icon: Bank },
   { label: "Operations", href: "/admin/operations", icon: ClipboardText },
   { label: "Bookings", href: "/admin/bookings", icon: Wrench },

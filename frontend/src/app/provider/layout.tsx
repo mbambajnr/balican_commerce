@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import {
   House, Package, Wrench, Wrench as WrenchIcon,
   User, Clipboard, SignOut, ShoppingBagOpen, FileText,
-  ChartBar, Bell, TrendUp, MagnifyingGlass, ShieldCheck,
+  ChartBar, Bell, TrendUp, MagnifyingGlass, ShieldCheck, CurrencyCircleDollar,
 } from "@phosphor-icons/react";
 import NotificationBell from "@/components/NotificationBell";
 
@@ -17,6 +17,7 @@ const navItems = [
   { label: "Opportunities", href: "/provider/opportunities", icon: MagnifyingGlass },
   { label: "Agreements", href: "/agreements", icon: FileText },
   { label: "Operations", href: "/provider/operations", icon: ChartBar },
+  { label: "Commissions", href: "/provider/commissions", icon: CurrencyCircleDollar },
   { label: "Products", href: "/provider/products", icon: Package },
   { label: "Services", href: "/provider/services", icon: Wrench },
   { label: "Inventory", href: "/provider/inventory", icon: Clipboard },

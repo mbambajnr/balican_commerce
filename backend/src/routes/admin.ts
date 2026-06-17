@@ -2087,4 +2087,80 @@ router.patch(
   }
 );
 
+router.get("/commissions", authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
+    const providerCompanyId = req.query.providerCompanyId as string | undefined;
+    const status = req.query.status as string | undefined;
+    const csv = req.query.format === "csv";
+
+    const params: any[] = [days];
+    const conditions = ["cl.accrued_at >= NOW() - ($1::int * INTERVAL '1 day')"];
+    if (providerCompanyId) {
+      params.push(providerCompanyId);
+      conditions.push(`cl.provider_company_id = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      conditions.push(`cl.status = $${params.length}`);
+    }
+
+    const where = conditions.join(" AND ");
+    const rows = await query(
+      `SELECT cl.*, o.order_number, buyer.name as buyer_name, provider.name as provider_name,
+              cat.name as category_name
+       FROM commission_ledger cl
+       JOIN orders o ON o.id = cl.order_id
+       JOIN companies buyer ON buyer.id = cl.buyer_company_id
+       JOIN companies provider ON provider.id = cl.provider_company_id
+       LEFT JOIN categories cat ON cat.id = cl.category_id
+       WHERE ${where}
+       ORDER BY cl.accrued_at DESC`,
+      params
+    );
+
+    const summary = await query(
+      `SELECT COUNT(*)::int as count,
+              COALESCE(SUM(base_amount), 0)::numeric(12,2) as base_total,
+              COALESCE(SUM(commission_amount), 0)::numeric(12,2) as commission_total
+       FROM commission_ledger cl
+       WHERE ${where}`,
+      params
+    );
+
+    if (csv) {
+      const lines = [
+        "order_number,provider,buyer,category,base_amount,rate_percent,commission_amount,currency,status,accrued_at",
+        ...rows.rows.map((row: any) => [
+          row.order_number,
+          row.provider_name,
+          row.buyer_name,
+          row.category_name || "",
+          row.base_amount,
+          row.rate_percent,
+          row.commission_amount,
+          row.currency,
+          row.status,
+          row.accrued_at?.toISOString?.() || row.accrued_at,
+        ].map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")),
+      ];
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=\"commissions.csv\"");
+      return res.send(lines.join("\n"));
+    }
+
+    res.json({
+      summary: {
+        count: summary.rows[0].count,
+        baseTotal: Number(summary.rows[0].base_total),
+        commissionTotal: Number(summary.rows[0].commission_total),
+      },
+      commissions: rows.rows,
+    });
+  } catch (err) {
+    console.error("Commission report error:", err);
+    res.status(500).json({ error: "Failed to fetch commission report" });
+  }
+});
+
 export default router;

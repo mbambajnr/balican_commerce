@@ -8,10 +8,23 @@ export default function SuperAdminPlans() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
+  const [feeSettings, setFeeSettings] = useState<any>(null);
+  const [feeForm, setFeeForm] = useState({ amount: "500", renewalPeriodDays: "365", gracePeriodDays: "14" });
 
   const loadPlans = () => {
     setLoading(true);
-    api.getPlans().then(setPlans).catch(console.error).finally(() => setLoading(false));
+    Promise.all([api.getPlans(), api.getVerificationFeeSettings()])
+      .then(([plansData, feeData]) => {
+        setPlans(plansData);
+        setFeeSettings(feeData);
+        setFeeForm({
+          amount: String(feeData.amount),
+          renewalPeriodDays: String(feeData.renewal_period_days),
+          gracePeriodDays: String(feeData.grace_period_days),
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { loadPlans(); }, []);
@@ -43,11 +56,39 @@ export default function SuperAdminPlans() {
     }
   };
 
+  const saveFeeSettings = async () => {
+    try {
+      await api.updateVerificationFeeSettings({
+        amount: Number(feeForm.amount),
+        renewalPeriodDays: Number(feeForm.renewalPeriodDays),
+        gracePeriodDays: Number(feeForm.gracePeriodDays),
+      });
+      loadPlans();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
   if (loading) return <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto" /></div>;
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Subscription Plans</h1>
+
+      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-2">Balican Verified Fee</h2>
+        <p className="text-sm text-gray-500 mb-4">Configure the provider verification payment and renewal grace period.</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input className="border rounded px-3 py-2 text-sm" type="number" value={feeForm.amount} onChange={(e) => setFeeForm({...feeForm, amount: e.target.value})} placeholder="Amount" />
+          <input className="border rounded px-3 py-2 text-sm" value="GHS" disabled />
+          <input className="border rounded px-3 py-2 text-sm" type="number" value={feeForm.renewalPeriodDays} onChange={(e) => setFeeForm({...feeForm, renewalPeriodDays: e.target.value})} placeholder="Renewal days" />
+          <input className="border rounded px-3 py-2 text-sm" type="number" value={feeForm.gracePeriodDays} onChange={(e) => setFeeForm({...feeForm, gracePeriodDays: e.target.value})} placeholder="Grace days" />
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <button onClick={saveFeeSettings} className="px-3 py-2 bg-accent text-white rounded text-sm">Save Verification Fee</button>
+          {feeSettings?.updated_at && <span className="text-xs text-gray-400">Updated {new Date(feeSettings.updated_at).toLocaleString()}</span>}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {plans.map((plan) => (

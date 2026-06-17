@@ -99,6 +99,7 @@ router.get("/marketplace/providers", async (req: Request, res: Response) => {
     const result = await query(
       `SELECT c.id, c.name, c.description, c.website, c.logo_url, c.business_categories,
               c.service_areas, c.years_in_business, c.city, c.state, c.country,
+              c.verified_until,
               pp.id as profile_id, pp.display_name, pp.provider_type,
               pp.industries_served, pp.service_areas as profile_service_areas,
               pp.years_experience, pp.certifications, pp.verification_badge,
@@ -132,7 +133,7 @@ router.get("/marketplace/providers/:id", async (req: Request, res: Response) => 
     const providerResult = await query(
       `SELECT c.id, c.name, c.description, c.website, c.logo_url, c.business_categories,
               c.service_areas, c.years_in_business, c.address, c.city, c.state, c.country,
-              c.email, c.phone, c.contact_person_name,
+              c.email, c.phone, c.contact_person_name, c.verified_until,
               pp.id as profile_id, pp.display_name, pp.provider_type,
               pp.description as profile_description, pp.industries_served,
               pp.service_areas as profile_service_areas, pp.operating_regions,

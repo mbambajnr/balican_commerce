@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { query } from "../config/db";
+import { config } from "../config";
 import { storePrivateDocument, validateDocumentFile } from "../services/storage";
 import { createActivityLog } from "../services/activity-log";
 import { notifyVerificationSubmitted } from "../services/verification-notifications";
@@ -18,7 +19,8 @@ const VALID_DOC_TYPES = [
 // GET /api/provider/verification/status
 async function getProviderCompany(userId: string) {
   const userResult = await query(
-    `SELECT u.company_id, c.verification_status, c.company_type, c.is_provider
+    `SELECT u.company_id, u.email, c.verification_status, c.company_type, c.is_provider,
+            c.verified_until, c.verification_fee_waived_until, c.verification_fee_waiver_reason
      FROM users u LEFT JOIN companies c ON u.company_id = c.id WHERE u.id = $1`,
     [userId]
   );
@@ -30,6 +32,42 @@ async function getProviderCompany(userId: string) {
     return null;
   }
   return company;
+}
+
+async function getVerificationFeeState(companyId: string) {
+  const [settingsResult, paymentResult] = await Promise.all([
+    query(
+      `SELECT amount, currency, renewal_period_days, grace_period_days
+       FROM verification_fee_settings WHERE id = TRUE`
+    ),
+    query(
+      `SELECT id, amount, currency, paystack_reference, status, authorization_url, paid_at, created_at
+       FROM verification_fee_payments
+       WHERE company_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [companyId]
+    ),
+  ]);
+
+  return {
+    settings: settingsResult.rows[0] || {
+      amount: "500.00",
+      currency: config.paystack.currency,
+      renewal_period_days: 365,
+      grace_period_days: 14,
+    },
+    latestPayment: paymentResult.rows[0] || null,
+  };
+}
+
+function hasActiveWaiver(company: any): boolean {
+  if (!company.verification_fee_waived_until) return false;
+  return new Date(company.verification_fee_waived_until).getTime() >= Date.now();
+}
+
+function hasSuccessfulPayment(payment: any): boolean {
+  return payment?.status === "paid";
 }
 
 router.get("/verification/status", authenticate, async (req: AuthRequest, res: Response) => {
@@ -44,15 +82,111 @@ router.get("/verification/status", authenticate, async (req: AuthRequest, res: R
        FROM verification_documents WHERE company_id = $1 ORDER BY created_at DESC`,
       [company.company_id]
     );
+    const feeState = await getVerificationFeeState(company.company_id);
 
     res.json({
       companyId: company.company_id,
       verificationStatus: company.verification_status,
+      verifiedUntil: company.verified_until,
+      feeWaiver: {
+        active: hasActiveWaiver(company),
+        waivedUntil: company.verification_fee_waived_until,
+        reason: company.verification_fee_waiver_reason,
+      },
+      verificationFee: {
+        amount: parseFloat(feeState.settings.amount),
+        currency: feeState.settings.currency,
+        renewalPeriodDays: feeState.settings.renewal_period_days,
+        gracePeriodDays: feeState.settings.grace_period_days,
+        latestPayment: feeState.latestPayment,
+        canSubmitForReview: hasActiveWaiver(company) || hasSuccessfulPayment(feeState.latestPayment),
+      },
       documents: docsResult.rows,
     });
   } catch (err) {
     console.error("Error fetching verification status:", err);
     res.status(500).json({ error: "Failed to fetch verification status" });
+  }
+});
+
+// POST /api/provider/verification/payment/init
+router.post("/verification/payment/init", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const company = await getProviderCompany(req.userId!);
+    if (!company) {
+      return res.status(403).json({ error: "Only provider companies can pay verification fees" });
+    }
+
+    if (company.verification_status === "approved") {
+      return res.status(400).json({ error: "Company is already verified" });
+    }
+
+    const feeState = await getVerificationFeeState(company.company_id);
+    if (hasActiveWaiver(company) || hasSuccessfulPayment(feeState.latestPayment)) {
+      return res.json({
+        alreadyPaid: true,
+        reference: feeState.latestPayment?.paystack_reference || null,
+        authorizationUrl: feeState.latestPayment?.authorization_url || "",
+      });
+    }
+
+    const amount = Number(feeState.settings.amount);
+    const reference = `VF-${company.company_id.slice(0, 8)}-${Date.now()}`;
+    const paystackPayload = {
+      email: company.email || req.body.email,
+      amount: Math.round(amount * 100),
+      currency: feeState.settings.currency,
+      reference,
+      callback_url: `${config.frontendUrl}/provider/verification`,
+      metadata: { company_id: company.company_id, purpose: "verification_fee" },
+    };
+
+    const paystackRes = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.paystack.secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(paystackPayload),
+    });
+
+    const paystackData = await paystackRes.json() as {
+      status: boolean;
+      message?: string;
+      data?: { authorization_url: string };
+    };
+
+    if (!paystackData.status) {
+      return res.status(400).json({ error: paystackData.message || "Paystack initialization failed" });
+    }
+
+    await query(
+      `INSERT INTO verification_fee_payments
+        (company_id, user_id, amount, currency, paystack_reference, authorization_url, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        company.company_id,
+        req.userId,
+        amount,
+        feeState.settings.currency,
+        reference,
+        paystackData.data?.authorization_url || "",
+        JSON.stringify({ initializedBy: req.userId }),
+      ]
+    );
+
+    await createActivityLog({
+      companyId: company.company_id,
+      userId: req.userId,
+      action: "verification_fee_initialized",
+      description: "Initialized Balican Verified payment",
+      metadata: { reference, amount, currency: feeState.settings.currency },
+    });
+
+    res.json({ authorizationUrl: paystackData.data?.authorization_url || "", reference });
+  } catch (err) {
+    console.error("Error initializing verification payment:", err);
+    res.status(500).json({ error: "Failed to initialize verification payment" });
   }
 });
 
@@ -156,6 +290,16 @@ router.post("/verification/submit", authenticate, async (req: AuthRequest, res: 
     );
     if (docsResult.rows[0].count === 0) {
       return res.status(400).json({ error: "Upload at least one document before submitting" });
+    }
+
+    const feeState = await getVerificationFeeState(company.company_id);
+    if (!hasActiveWaiver(company) && !hasSuccessfulPayment(feeState.latestPayment)) {
+      return res.status(402).json({
+        error: "Balican Verified fee payment is required before review",
+        code: "VERIFICATION_PAYMENT_REQUIRED",
+        amount: parseFloat(feeState.settings.amount),
+        currency: feeState.settings.currency,
+      });
     }
 
     await query(

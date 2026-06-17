@@ -9,6 +9,7 @@ import { config } from "../config";
 import { notifyAndLog } from "../services/notifications";
 import { sendEmail } from "../services/email";
 import { generateInvoicePdf, InvoicePdfData, InvoicePdfItem } from "../services/pdf";
+import { accrueCommissionForCompletedOrder, alertCommissionAccrualFailure } from "../services/commissions";
 
 const FRONTEND_URL = config.frontendUrl;
 
@@ -924,6 +925,83 @@ router.post("/paystack-webhook", async (req, res: Response) => {
           return;
         }
 
+        const verificationPayment = await client.query(
+          `SELECT vfp.*, c.name as company_name, u.email, u.first_name, u.last_name
+           FROM verification_fee_payments vfp
+           JOIN companies c ON c.id = vfp.company_id
+           JOIN users u ON u.id = vfp.user_id
+           WHERE vfp.paystack_reference = $1
+           FOR UPDATE OF vfp`,
+          [reference]
+        );
+        if (verificationPayment.rows.length > 0) {
+          const payment = verificationPayment.rows[0];
+          if (payment.status === "paid") return;
+
+          const expectedPesewas = Math.round(Number(payment.amount) * 100);
+          const amountMatches = Number.isInteger(paystackAmount) && paystackAmount === expectedPesewas;
+          const currencyMatches = paystackCurrency === payment.currency && paystackCurrency === config.paystack.currency;
+
+          if (!amountMatches || !currencyMatches) {
+            emitCriticalAlert("payment.verification_fee_mismatch", {
+              reference,
+              companyId: payment.company_id,
+              expectedAmount: expectedPesewas,
+              receivedAmount: paystackAmount,
+              expectedCurrency: payment.currency,
+              receivedCurrency: paystackCurrency ?? null,
+            }, 0);
+            await client.query(
+              `INSERT INTO activity_logs (company_id, user_id, action, description, metadata)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [
+                payment.company_id,
+                payment.user_id,
+                "verification_fee_mismatch",
+                "Balican Verified payment did not match expected amount or currency",
+                JSON.stringify({
+                  reference,
+                  expectedAmount: expectedPesewas,
+                  receivedAmount: paystackAmount ?? null,
+                  expectedCurrency: payment.currency,
+                  receivedCurrency: paystackCurrency ?? null,
+                }),
+              ]
+            );
+            return;
+          }
+
+          await client.query(
+            `UPDATE verification_fee_payments
+             SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+             WHERE id = $1`,
+            [payment.id]
+          );
+          await client.query(
+            `INSERT INTO activity_logs (company_id, user_id, action, description, metadata)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              payment.company_id,
+              payment.user_id,
+              "verification_fee_paid",
+              "Balican Verified fee paid",
+              JSON.stringify({ reference, amount: Number(payment.amount), currency: payment.currency }),
+            ]
+          );
+
+          await notifyAndLog({
+            recipientEmail: payment.email,
+            recipientName: [payment.first_name, payment.last_name].filter(Boolean).join(" "),
+            subject: "Balican Verified Payment Received",
+            body: `Your Balican Verified payment for ${payment.company_name} has been received. You can now submit your documents for review.`,
+            eventType: "payment.verified",
+            entityType: "payment",
+            entityId: payment.id,
+            performedBy: "system",
+          }).catch(() => {});
+          return;
+        }
+
         const order = await client.query(
           "SELECT * FROM orders WHERE paystack_reference = $1 FOR UPDATE",
           [reference]
@@ -1171,28 +1249,44 @@ router.patch("/:id/lifecycle", authenticate, requireCompanyActive, validate(life
       return res.status(400).json({ error: "Invalid action" });
     }
 
-    // Apply transition
-    await query(
-      "UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2",
-      [newStatus, order.id]
-    );
-
-    // Record in history
     const role = isAdmin ? "admin" : isSupplier ? "supplier" : "buyer";
-    await query(
-      `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_user_id, changed_by_company_id, role, note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [order.id, currentStatus, newStatus, req.userId, user.company_id, role, note || null]
-    );
 
-    // Log activity
-    await logActivity(
-      "order", order.id,
-      `order.status.${newStatus}`,
-      `Order ${order.order_number} moved from ${currentStatus} to ${newStatus}`,
-      { from: currentStatus, to: newStatus, role, note: note || null },
-      req.userId
-    );
+    await transaction(async (client) => {
+      // Apply transition
+      await client.query(
+        "UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2",
+        [newStatus, order.id]
+      );
+
+      // Record in history
+      await client.query(
+        `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_user_id, changed_by_company_id, role, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [order.id, currentStatus, newStatus, req.userId, user.company_id, role, note || null]
+      );
+
+      // Log activity
+      await client.query(
+        `INSERT INTO activities (entity_type, entity_id, type, description, metadata, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          "order",
+          order.id,
+          `order.status.${newStatus}`,
+          `Order ${order.order_number} moved from ${currentStatus} to ${newStatus}`,
+          JSON.stringify({ from: currentStatus, to: newStatus, role, note: note || null }),
+          req.userId,
+        ]
+      );
+
+      if (newStatus === "completed") {
+        try {
+          await accrueCommissionForCompletedOrder(client, order.id);
+        } catch (commissionErr) {
+          alertCommissionAccrualFailure(order.id, commissionErr);
+        }
+      }
+    });
 
     // Fetch updated order
     const updated = await query("SELECT * FROM orders WHERE id = $1", [order.id]);

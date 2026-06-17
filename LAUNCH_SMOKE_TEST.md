@@ -1,4 +1,34 @@
-# B2B Launch Smoke Test — Manual Checklist
+# B2B Launch Smoke Test
+
+Start every launch smoke test with the automated read-only checks:
+
+```bash
+BASE_URL=https://your-domain.com node scripts/smoke-test.mjs
+```
+
+If the frontend and backend are served from different origins, provide both:
+
+```bash
+BASE_URL=https://your-frontend-domain.com API_BASE_URL=https://your-api-domain.com node scripts/smoke-test.mjs
+```
+
+The automated script verifies liveness, deep readiness when available, public
+marketplace endpoints, Auth.js session safety, browser credential-proxy
+blocking, cross-site request rejection, and browser security headers. It exits
+non-zero when an automated check fails.
+
+For production, the script is intentionally read-only. It does not create users,
+orders, sourcing requests, payments, or emails. Complete the manual checklist
+below after it passes.
+
+Optional environment variables:
+
+- `SMOKE_TIMEOUT_MS=10000` — request timeout in milliseconds.
+- `SMOKE_STRICT_READY=true` — fail if `/api/ready` is missing at `API_BASE_URL`.
+
+---
+
+## Manual Checklist
 
 > Use this checklist to verify all B2B commerce flows work end-to-end before launching.
 > Test against a clean deployment (fresh database, fresh migrations).
