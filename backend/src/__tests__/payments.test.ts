@@ -802,8 +802,8 @@ describe("Paystack Webhook", () => {
 
   beforeAll(async () => {
     // Clean any orders with the hardcoded test references to avoid stale data issues
-    await query("DELETE FROM order_payments WHERE reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001','PAYSTACK-TEST-UNDER-001','PAYSTACK-TEST-CURRENCY-001','PAYSTACK-TEST-MISSING-CURRENCY-001')").catch(() => {});
-    await query("DELETE FROM orders WHERE paystack_reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001','PAYSTACK-TEST-UNDER-001','PAYSTACK-TEST-CURRENCY-001','PAYSTACK-TEST-MISSING-CURRENCY-001')").catch(() => {});
+    await query("DELETE FROM order_payments WHERE reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001','PAYSTACK-TEST-UNDER-001','PAYSTACK-TEST-OVER-001','PAYSTACK-TEST-CURRENCY-001','PAYSTACK-TEST-MISSING-CURRENCY-001','PAYSTACK-TEST-MISSING-AMOUNT-001')").catch(() => {});
+    await query("DELETE FROM orders WHERE paystack_reference IN ('PAYSTACK-TEST-REF-001','PAYSTACK-TEST-VALID-001','PAYSTACK-TEST-DUP-001','PAYSTACK-TEST-UNDER-001','PAYSTACK-TEST-OVER-001','PAYSTACK-TEST-CURRENCY-001','PAYSTACK-TEST-MISSING-CURRENCY-001','PAYSTACK-TEST-MISSING-AMOUNT-001')").catch(() => {});
 
     webhookOrder = await createTestOrder({
       userId: state.customerUser.id,
@@ -923,7 +923,30 @@ describe("Paystack Webhook", () => {
     expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
   });
 
-  test("TC-12f: Wrong currency does not mark the order paid", async () => {
+  test("TC-12f: Overpayment does not mark the order paid", async () => {
+    const order = await createTestOrder({
+      userId: state.customerUser.id,
+      paymentMethod: "paystack",
+      total: 50000,
+      paystackReference: "PAYSTACK-TEST-OVER-001",
+    });
+    await createTestInvoice({ orderId: order.id, total: 50000, status: "pending_payment" });
+    state.createdOrderIds.push(order.id);
+
+    const res = await request(app)
+      .post("/api/orders/paystack-webhook")
+      .send({
+        event: "charge.success",
+        data: { reference: "PAYSTACK-TEST-OVER-001", amount: 5000001, currency: "GHS" },
+      });
+
+    expect(res.status).toBe(200);
+    const check = await query("SELECT payment_status, amount_paid FROM orders WHERE id = $1", [order.id]);
+    expect(check.rows[0].payment_status).not.toBe("paid");
+    expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
+  });
+
+  test("TC-12g: Wrong currency does not mark the order paid", async () => {
     const order = await createTestOrder({
       userId: state.customerUser.id,
       paymentMethod: "paystack",
@@ -946,7 +969,7 @@ describe("Paystack Webhook", () => {
     expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
   });
 
-  test("TC-12g: Missing currency does not mark the order paid", async () => {
+  test("TC-12h: Missing currency does not mark the order paid", async () => {
     const order = await createTestOrder({
       userId: state.customerUser.id,
       paymentMethod: "paystack",
@@ -961,6 +984,29 @@ describe("Paystack Webhook", () => {
       .send({
         event: "charge.success",
         data: { reference: "PAYSTACK-TEST-MISSING-CURRENCY-001", amount: 5000000 },
+      });
+
+    expect(res.status).toBe(200);
+    const check = await query("SELECT payment_status, amount_paid FROM orders WHERE id = $1", [order.id]);
+    expect(check.rows[0].payment_status).not.toBe("paid");
+    expect(parseFloat(check.rows[0].amount_paid || "0")).toBe(0);
+  });
+
+  test("TC-12i: Missing amount does not mark the order paid", async () => {
+    const order = await createTestOrder({
+      userId: state.customerUser.id,
+      paymentMethod: "paystack",
+      total: 50000,
+      paystackReference: "PAYSTACK-TEST-MISSING-AMOUNT-001",
+    });
+    await createTestInvoice({ orderId: order.id, total: 50000, status: "pending_payment" });
+    state.createdOrderIds.push(order.id);
+
+    const res = await request(app)
+      .post("/api/orders/paystack-webhook")
+      .send({
+        event: "charge.success",
+        data: { reference: "PAYSTACK-TEST-MISSING-AMOUNT-001", currency: "GHS" },
       });
 
     expect(res.status).toBe(200);
