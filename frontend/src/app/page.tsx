@@ -155,35 +155,6 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="marketplace" className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
-          <Reveal>
-            <div className="mb-14 flex items-end justify-between">
-              <div>
-                <span className="section-label text-accent">
-                  <span className="accent-diamond" />
-                  Explore the Marketplace
-                </span>
-                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Already know what you need?</h2>
-                <p className="mt-2 max-w-lg text-sm leading-relaxed text-soft">
-                  Browse products and providers as a secondary path, or return to Scout when your requirement needs competitive proposals.
-                </p>
-              </div>
-              <Link href="/products" className="hidden items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-bold transition-colors sm:flex">
-                View All <ArrowRight size={14} weight="bold" />
-              </Link>
-            </div>
-          </Reveal>
-
-          <Reveal animation="animate-fade-up">
-            <FeaturedProductCarousel products={products} />
-            <div className="mt-8 text-center sm:hidden">
-              <Link href="/products" className="btn btn-ghost gap-2">
-                View All Products <ArrowRight size={14} weight="bold" />
-              </Link>
-            </div>
-          </Reveal>
-        </section>
-
         <section id="how-it-works" className="scroll-mt-20 border-t border-border bg-surface">
           <div className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
             <Reveal>
@@ -227,6 +198,35 @@ export default async function HomePage() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section id="marketplace" className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="mb-14 flex items-end justify-between">
+              <div>
+                <span className="section-label text-accent">
+                  <span className="accent-diamond" />
+                  Explore the Marketplace
+                </span>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Already know what you need?</h2>
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-soft">
+                  Browse products and providers as a secondary path, or return to Scout when your requirement needs competitive proposals.
+                </p>
+              </div>
+              <Link href="/products" className="hidden items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-bold transition-colors sm:flex">
+                View All <ArrowRight size={14} weight="bold" />
+              </Link>
+            </div>
+          </Reveal>
+
+          <Reveal animation="animate-fade-up">
+            <FeaturedProductCarousel products={products} />
+            <div className="mt-8 text-center sm:hidden">
+              <Link href="/products" className="btn btn-ghost gap-2">
+                View All Products <ArrowRight size={14} weight="bold" />
+              </Link>
+            </div>
+          </Reveal>
         </section>
 
         <section className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">

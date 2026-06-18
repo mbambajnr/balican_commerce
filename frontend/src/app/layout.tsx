@@ -14,22 +14,22 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://balican.com";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Bali-Can Limited — Industrial Solutions",
+    default: "Bali-Can Limited — B2B Sourcing & Verified Suppliers in Ghana",
     template: "%s | Bali-Can Limited",
   },
-  description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, and B2B procurement.",
+  description: "Post sourcing requests, compare proposals from verified suppliers, and manage eligible Ghanaian B2B purchases on approved GH₵ credit terms.",
   openGraph: {
     type: "website",
     locale: "en_GH",
     siteName: "Bali-Can Limited",
-    title: "Bali-Can Limited — Industrial Solutions",
-    description: "End-to-end industrial product sourcing and service delivery across Ghana. HVAC, electricals, appliances, solar, and B2B procurement.",
+    title: "Bali-Can Limited — B2B Sourcing & Verified Suppliers in Ghana",
+    description: "Post requirements, compare verified supplier proposals, and close eligible B2B deals on approved GH₵ credit terms.",
     images: [{ url: "/og-default.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Bali-Can Limited — Industrial Solutions",
-    description: "End-to-end industrial product sourcing and service delivery across Ghana.",
+    title: "Bali-Can Limited — B2B Sourcing & Verified Suppliers in Ghana",
+    description: "Post requirements, compare verified supplier proposals, and manage the deal through fulfillment.",
     images: ["/og-default.png"],
   },
   icons: {

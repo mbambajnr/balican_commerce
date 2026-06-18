@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Bali-Can Limited — Industrial Solutions";
+export const alt = "Bali-Can Limited — B2B sourcing with verified suppliers in Ghana";
 export const size = { width: 1200, height: 600 };
 export const contentType = "image/png";
 
@@ -50,7 +50,7 @@ export default function TwitterImage() {
           </span>
         </div>
         <span style={{ color: "#D4AF37", fontSize: "18px", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          Industrial Solutions · Ghana
+          Post requirements · Compare verified suppliers · Ghana
         </span>
       </div>
     ),
