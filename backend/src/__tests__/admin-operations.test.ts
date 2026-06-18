@@ -184,6 +184,16 @@ describe("GET /api/admin/ops-report", () => {
       [overdueOrder.id]
     );
 
+    const funnelPrefix = `ops-funnel-${Date.now()}`;
+    await query(
+      `INSERT INTO funnel_events (event_name, event_key, company_id, user_id, entity_type, entity_id)
+       VALUES
+         ('sourcing_request_created', $1, $4, $5, 'scout_request', $6),
+         ('sourcing_request_created', $2, $4, $5, 'scout_request', $6),
+         ('opportunity_viewed', $3, $4, $5, 'scout_request', $6)`,
+      [`${funnelPrefix}:request:1`, `${funnelPrefix}:request:2`, `${funnelPrefix}:view:1`, buyerCompany.id, buyer.id, scout.id]
+    );
+
     const after = await request(app)
       .get("/api/admin/ops-report?days=1")
       .set("Authorization", `Bearer ${adminToken}`);
@@ -205,6 +215,14 @@ describe("GET /api/admin/ops-report", () => {
     expect(after.body.repayments.received - before.body.repayments.received).toBe(1);
     expect(after.body.repayments.value - before.body.repayments.value).toBe(100);
     expect(after.body.repayments.onTime - before.body.repayments.onTime).toBe(1);
+    const requestStage = after.body.funnel.stages.find((stage: any) => stage.key === "sourcing_request_created");
+    const beforeRequestStage = before.body.funnel.stages.find((stage: any) => stage.key === "sourcing_request_created");
+    const viewStage = after.body.funnel.stages.find((stage: any) => stage.key === "opportunity_viewed");
+    const beforeViewStage = before.body.funnel.stages.find((stage: any) => stage.key === "opportunity_viewed");
+    expect(requestStage.count - beforeRequestStage.count).toBe(2);
+    expect(viewStage.count - beforeViewStage.count).toBe(1);
+    const viewConversion = after.body.funnel.conversions.find((conversion: any) => conversion.to === "opportunity_viewed");
+    expect(viewConversion.rate).toBeCloseTo(viewStage.count / requestStage.count * 100, 2);
     expect(after.body.sourcing.oneResponseRate48h).toBeCloseTo(
       after.body.sourcing.requestsWithOneResponse48h / after.body.sourcing.requestsCreated * 100,
       2
@@ -215,6 +233,7 @@ describe("GET /api/admin/ops-report", () => {
     await query("DELETE FROM scout_agreements WHERE id = $1", [agreement.id]);
     await query("DELETE FROM scout_quotes WHERE request_id = $1", [scout.id]);
     await query("DELETE FROM scout_requests WHERE id = $1", [scout.id]);
+    await query("DELETE FROM funnel_events WHERE event_key LIKE $1", [`${funnelPrefix}:%`]);
   });
 });
 

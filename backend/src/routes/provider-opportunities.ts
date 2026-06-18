@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../config/db";
 import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
+import { trackCompanyActivation, trackFunnelEvent } from "../services/funnel-events";
 
 const router = Router();
 
@@ -137,6 +138,18 @@ router.get("/provider/opportunities/:id", authenticate, requireCompanyActive, as
     }
 
     const row = reqResult.rows[0];
+    void Promise.all([
+      trackCompanyActivation({ companyId: providerCompanyId, userId: req.userId, entityType: "scout_request", entityId: row.id }),
+      trackFunnelEvent({
+        eventName: "opportunity_viewed",
+        eventKey: `opportunity_viewed:${providerCompanyId}:${row.id}`,
+        companyId: providerCompanyId,
+        userId: req.userId,
+        entityType: "scout_request",
+        entityId: row.id,
+        metadata: { buyerCompanyId: row.company_id, categoryId: row.category_id },
+      }),
+    ]);
 
     const opportunity = {
       id: row.id,
@@ -214,6 +227,18 @@ router.post(
       );
 
       const proposal = result.rows[0];
+      void Promise.all([
+        trackCompanyActivation({ companyId: providerCompanyId, userId: req.userId, entityType: "scout_quote", entityId: proposal.id }),
+        trackFunnelEvent({
+          eventName: "supplier_responded",
+          eventKey: `supplier_responded:${providerCompanyId}:${req.params.id}`,
+          companyId: providerCompanyId,
+          userId: req.userId,
+          entityType: "scout_quote",
+          entityId: proposal.id,
+          metadata: { requestId: req.params.id, buyerCompanyId: reqRow.rows[0].company_id },
+        }),
+      ]);
       res.status(201).json({
         proposal: {
           id: proposal.id,

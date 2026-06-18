@@ -35,6 +35,10 @@ type OpsReport = {
     overdueOrdersValue: number;
   };
   repayments: { received: number; value: number; onTime: number; onTimeRate: number };
+  funnel: {
+    stages: Array<{ key: string; label: string; count: number }>;
+    conversions: Array<{ from: string; to: string; rate: number }>;
+  };
 };
 
 const periods = [7, 30, 90];
@@ -108,6 +112,11 @@ export default function AdminOperationsPage() {
     ["Repayments received", data.repayments.received],
     ["Repayment value", data.repayments.value],
     ["On-time repayment rate", `${data.repayments.onTimeRate}%`],
+    ...data.funnel.stages.map((stage) => [`Funnel: ${stage.label}`, stage.count]),
+    ...data.funnel.conversions.map((conversion) => [
+      `Conversion: ${conversion.from} to ${conversion.to}`,
+      `${conversion.rate}%`,
+    ]),
   ] : [], [data]);
 
   const downloadCsv = () => {
@@ -190,6 +199,37 @@ export default function AdminOperationsPage() {
           </section>
 
           <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-2xl border border-border bg-white p-6 xl:col-span-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">First-party funnel</p>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">From activation to platform revenue</h2>
+                </div>
+                <p className="text-xs text-muted">Conversion compares each stage with the one before it.</p>
+              </div>
+              <div className="mt-6 overflow-x-auto pb-2">
+                <div className="flex min-w-max items-stretch gap-2">
+                  {data.funnel.stages.map((stage, index) => {
+                    const conversion = index > 0 ? data.funnel.conversions[index - 1] : null;
+                    return (
+                      <div key={stage.key} className="flex items-center gap-2">
+                        {conversion && (
+                          <div className="w-14 text-center">
+                            <p className="text-xs font-bold text-accent">{conversion.rate}%</p>
+                            <div className="mt-1 h-px bg-border" />
+                          </div>
+                        )}
+                        <div className="w-36 rounded-xl bg-surface p-4">
+                          <p className="text-2xl font-semibold text-ink">{stage.count}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">{stage.label}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-border bg-white p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Deal progression</p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">

@@ -1972,8 +1972,24 @@ router.get(
            CROSS JOIN bounds b
            WHERE o.payment_method = 'credit'
              AND op.paid_at >= b.starts_at AND op.paid_at <= b.ends_at
+         ),
+         funnel_metrics AS (
+           SELECT
+             COUNT(*) FILTER (WHERE fe.event_name = 'company_activated')::int AS company_activated,
+             COUNT(*) FILTER (WHERE fe.event_name = 'sourcing_request_created')::int AS sourcing_request_created,
+             COUNT(*) FILTER (WHERE fe.event_name = 'opportunity_viewed')::int AS opportunity_viewed,
+             COUNT(*) FILTER (WHERE fe.event_name = 'supplier_responded')::int AS supplier_responded,
+             COUNT(*) FILTER (WHERE fe.event_name = 'proposal_accepted')::int AS proposal_accepted,
+             COUNT(*) FILTER (WHERE fe.event_name = 'agreement_signed')::int AS agreement_signed,
+             COUNT(*) FILTER (WHERE fe.event_name = 'procurement_order_created')::int AS procurement_order_created,
+             COUNT(*) FILTER (WHERE fe.event_name = 'order_fulfilled')::int AS order_fulfilled,
+             COUNT(*) FILTER (WHERE fe.event_name = 'credit_drawdown')::int AS credit_drawdown,
+             COUNT(*) FILTER (WHERE fe.event_name = 'repayment_received')::int AS repayment_received,
+             COUNT(*) FILTER (WHERE fe.event_name = 'commission_accrued')::int AS commission_accrued
+           FROM funnel_events fe, bounds b
+           WHERE fe.created_at >= b.starts_at AND fe.created_at <= b.ends_at
          )
-         SELECT b.starts_at, b.ends_at, rm.*, pm.*, am.*, om.*, cm.*, odm.*, rpm.*
+         SELECT b.starts_at, b.ends_at, rm.*, pm.*, am.*, om.*, cm.*, odm.*, rpm.*, fm.*
          FROM bounds b
          CROSS JOIN request_metrics rm
          CROSS JOIN proposal_metrics pm
@@ -1981,7 +1997,8 @@ router.get(
          CROSS JOIN order_metrics om
          CROSS JOIN credit_metrics cm
          CROSS JOIN overdue_metrics odm
-         CROSS JOIN repayment_metrics rpm`,
+         CROSS JOIN repayment_metrics rpm
+         CROSS JOIN funnel_metrics fm`,
         [parsedDays]
       );
 
@@ -1999,6 +2016,19 @@ router.get(
       const creditUsed = number(row.credit_used);
       const repaymentsReceived = number(row.repayments_received);
       const repaymentsOnTime = number(row.repayments_on_time);
+      const funnelStages = [
+        ["company_activated", "Company activated"],
+        ["sourcing_request_created", "Sourcing request created"],
+        ["opportunity_viewed", "Opportunity viewed"],
+        ["supplier_responded", "Supplier responded"],
+        ["proposal_accepted", "Proposal accepted"],
+        ["agreement_signed", "Agreement signed"],
+        ["procurement_order_created", "Procurement order created"],
+        ["order_fulfilled", "Order fulfilled"],
+        ["credit_drawdown", "Credit drawdown"],
+        ["repayment_received", "Repayment received"],
+        ["commission_accrued", "Commission accrued"],
+      ].map(([key, label]) => ({ key, label, count: number(row[key]) }));
 
       res.json({
         window: { days: parsedDays, startsAt: row.starts_at, endsAt: row.ends_at },
@@ -2031,6 +2061,14 @@ router.get(
           value: number(row.repayments_value),
           onTime: repaymentsOnTime,
           onTimeRate: percentage(repaymentsOnTime, repaymentsReceived),
+        },
+        funnel: {
+          stages: funnelStages,
+          conversions: funnelStages.slice(0, -1).map((stage, index) => ({
+            from: stage.key,
+            to: funnelStages[index + 1].key,
+            rate: percentage(funnelStages[index + 1].count, stage.count),
+          })),
         },
       });
     } catch (err) {

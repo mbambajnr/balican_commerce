@@ -4,6 +4,7 @@ import { query } from "../config/db";
 import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { dispatchOpportunityNotifications } from "../services/opportunity-notifications";
+import { trackCompanyActivation, trackFunnelEvent } from "../services/funnel-events";
 
 const router = Router();
 
@@ -109,6 +110,18 @@ router.post(
       await dispatchOpportunityNotifications(result.rows[0].id, "new").catch((err) => {
         console.error("Scout opportunity notification error:", err);
       });
+      void Promise.all([
+        trackCompanyActivation({ companyId, userId: req.userId, entityType: "scout_request", entityId: result.rows[0].id }),
+        trackFunnelEvent({
+          eventName: "sourcing_request_created",
+          eventKey: `sourcing_request_created:${result.rows[0].id}`,
+          companyId,
+          userId: req.userId,
+          entityType: "scout_request",
+          entityId: result.rows[0].id,
+          metadata: { categoryId: categoryId || null, requestType: requestType || "product" },
+        }),
+      ]);
 
       res.status(201).json({ request: result.rows[0] });
     } catch (err) {
@@ -312,6 +325,27 @@ router.post(
         "UPDATE scout_requests SET status = 'awarded', updated_at = NOW() WHERE id = $1",
         [req.params.id]
       );
+
+      void Promise.all([
+        trackFunnelEvent({
+          eventName: "proposal_accepted",
+          eventKey: `proposal_accepted:${quote.id}`,
+          companyId,
+          userId: req.userId,
+          entityType: "scout_quote",
+          entityId: quote.id,
+          metadata: { requestId: req.params.id, providerCompanyId: quote.provider_company_id },
+        }),
+        trackFunnelEvent({
+          eventName: "procurement_order_created",
+          eventKey: `procurement_order_created:${order.id}`,
+          companyId,
+          userId: req.userId,
+          entityType: "order",
+          entityId: order.id,
+          metadata: { requestId: req.params.id, source: "scout" },
+        }),
+      ]);
 
       res.status(201).json({ success: true, order });
     } catch (err) {

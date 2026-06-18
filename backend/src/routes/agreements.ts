@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../config/db";
 import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
+import { trackFunnelEvent } from "../services/funnel-events";
 
 const router = Router();
 
@@ -242,6 +243,27 @@ router.post(
         "UPDATE scout_requests SET status = 'awarded', updated_at = NOW() WHERE id = $1",
         [quote.request_id]
       );
+
+      void Promise.all([
+        trackFunnelEvent({
+          eventName: "proposal_accepted",
+          eventKey: `proposal_accepted:${quote.id}`,
+          companyId: buyerCompanyId,
+          userId: req.userId,
+          entityType: "scout_quote",
+          entityId: quote.id,
+          metadata: { requestId: quote.request_id, providerCompanyId: quote.provider_company_id },
+        }),
+        trackFunnelEvent({
+          eventName: "agreement_signed",
+          eventKey: `agreement_signed:${agreement.id}`,
+          companyId: buyerCompanyId,
+          userId: req.userId,
+          entityType: "scout_agreement",
+          entityId: agreement.id,
+          metadata: { requestId: quote.request_id, providerCompanyId: quote.provider_company_id },
+        }),
+      ]);
 
       res.status(201).json({
         agreement: {
@@ -616,6 +638,16 @@ router.post(
         "UPDATE scout_agreements SET order_id = $1, status = 'completed', updated_at = NOW() WHERE id = $2",
         [order.id, agreement.id]
       );
+
+      void trackFunnelEvent({
+        eventName: "procurement_order_created",
+        eventKey: `procurement_order_created:${order.id}`,
+        companyId: buyerCompanyId,
+        userId: req.userId,
+        entityType: "order",
+        entityId: order.id,
+        metadata: { requestId: agreement.scout_request_id, agreementId: agreement.id, source: "agreement" },
+      });
 
       res.status(201).json({ success: true, order });
     } catch (err) {

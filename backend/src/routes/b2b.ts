@@ -8,6 +8,7 @@ import { validate } from "../middleware/validate";
 import { applyCustomPricing } from "./products";
 import { notifyAndLog } from "../services/notifications";
 import { revokeUserSessions } from "../services/auth-session";
+import { trackFunnelEvent } from "../services/funnel-events";
 import {
   parseSpreadsheet,
   SpreadsheetParseError,
@@ -276,6 +277,15 @@ router.post("/cart/checkout", authenticate, requireCompanyActive, async (req: Au
              (SELECT COALESCE(credit_used, 0) FROM companies WHERE id = $1), $5)`,
           [creditCompanyId, subtotal, `Order ${orderNumber} placed on credit`, order.id, req.userId]
         );
+        void trackFunnelEvent({
+          eventName: "credit_drawdown",
+          eventKey: `credit_drawdown:${order.id}`,
+          companyId: creditCompanyId,
+          userId: req.userId,
+          entityType: "order",
+          entityId: order.id,
+          metadata: { amount: subtotal, source: "cart" },
+        });
       }
 
       // Clear cart
@@ -404,6 +414,15 @@ router.post("/quick-order", authenticate, requireCompanyActive, validate(z.objec
              (SELECT COALESCE(credit_used, 0) FROM companies WHERE id = $1), $5)`,
           [creditCompanyId, subtotal, `Quick order ${orderNumber} placed on credit`, ordResult.rows[0].id, req.userId]
         );
+        void trackFunnelEvent({
+          eventName: "credit_drawdown",
+          eventKey: `credit_drawdown:${ordResult.rows[0].id}`,
+          companyId: creditCompanyId,
+          userId: req.userId,
+          entityType: "order",
+          entityId: ordResult.rows[0].id,
+          metadata: { amount: subtotal, source: "quick_order" },
+        });
         await client.query(
           `INSERT INTO quick_orders (user_id, source, items, status) VALUES ($1, 'manual', $2, 'completed')`,
           [req.userId, JSON.stringify(skuItems)]
@@ -544,6 +563,15 @@ router.post("/quick-order/csv", authenticate, requireCompanyActive, upload.singl
              (SELECT COALESCE(credit_used, 0) FROM companies WHERE id = $1), $5)`,
           [creditCompanyId, subtotal, `CSV quick order ${orderNumber} placed on credit`, ordResult.rows[0].id, req.userId]
         );
+        void trackFunnelEvent({
+          eventName: "credit_drawdown",
+          eventKey: `credit_drawdown:${ordResult.rows[0].id}`,
+          companyId: creditCompanyId,
+          userId: req.userId,
+          entityType: "order",
+          entityId: ordResult.rows[0].id,
+          metadata: { amount: subtotal, source: "quick_order_csv" },
+        });
         await client.query(
           `INSERT INTO quick_orders (user_id, source, items, status) VALUES ($1, 'csv', $2, 'completed')`,
           [req.userId, JSON.stringify(orderItems)]

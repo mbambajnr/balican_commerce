@@ -10,6 +10,7 @@ import { notifyAndLog } from "../services/notifications";
 import { sendEmail } from "../services/email";
 import { generateInvoicePdf, InvoicePdfData, InvoicePdfItem } from "../services/pdf";
 import { accrueCommissionForCompletedOrder, alertCommissionAccrualFailure } from "../services/commissions";
+import { trackFunnelEvent } from "../services/funnel-events";
 
 const FRONTEND_URL = config.frontendUrl;
 
@@ -1251,6 +1252,7 @@ router.patch("/:id/lifecycle", authenticate, requireCompanyActive, validate(life
 
     const role = isAdmin ? "admin" : isSupplier ? "supplier" : "buyer";
 
+    let commissionLedgerId: string | undefined;
     await transaction(async (client) => {
       // Apply transition
       await client.query(
@@ -1281,12 +1283,35 @@ router.patch("/:id/lifecycle", authenticate, requireCompanyActive, validate(life
 
       if (newStatus === "completed") {
         try {
-          await accrueCommissionForCompletedOrder(client, order.id);
+          const commission = await accrueCommissionForCompletedOrder(client, order.id);
+          if (commission.accrued) commissionLedgerId = commission.ledgerId;
         } catch (commissionErr) {
           alertCommissionAccrualFailure(order.id, commissionErr);
         }
       }
     });
+
+    if (newStatus === "completed") {
+      void Promise.all([
+        trackFunnelEvent({
+          eventName: "order_fulfilled",
+          eventKey: `order_fulfilled:${order.id}`,
+          companyId: user.company_id,
+          userId: req.userId,
+          entityType: "order",
+          entityId: order.id,
+        }),
+        ...(commissionLedgerId ? [trackFunnelEvent({
+          eventName: "commission_accrued",
+          eventKey: `commission_accrued:${order.id}`,
+          companyId: user.company_id,
+          userId: req.userId,
+          entityType: "commission_ledger",
+          entityId: commissionLedgerId,
+          metadata: { orderId: order.id },
+        })] : []),
+      ]);
+    }
 
     // Fetch updated order
     const updated = await query("SELECT * FROM orders WHERE id = $1", [order.id]);

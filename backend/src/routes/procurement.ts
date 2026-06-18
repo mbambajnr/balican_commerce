@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../config/db";
 import { authenticate, requireAdmin, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { logProcurementActivity } from "../services/procurement-activity";
+import { trackFunnelEvent } from "../services/funnel-events";
 
 const router = Router();
 
@@ -864,6 +865,16 @@ router.post(
         eventType: "request.converted_to_order",
         description: `Request converted to order ${orderNumber}`,
         metadata: { orderId: orderResult.rows[0].id, orderNumber },
+      });
+
+      void trackFunnelEvent({
+        eventName: "procurement_order_created",
+        eventKey: `procurement_order_created:${orderResult.rows[0].id}`,
+        companyId,
+        userId: req.userId,
+        entityType: "order",
+        entityId: orderResult.rows[0].id,
+        metadata: { requestId: req.params.id, providerCompanyId: reqData.provider_company_id, source: "procurement" },
       });
 
       res.status(201).json({

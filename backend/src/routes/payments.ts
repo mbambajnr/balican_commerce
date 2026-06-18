@@ -4,6 +4,7 @@ import { query, transaction } from "../config/db";
 import { authenticate, requireAdmin, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { notifyAndLog } from "../services/notifications";
+import { trackFunnelEvent } from "../services/funnel-events";
 
 const router = Router();
 
@@ -148,7 +149,6 @@ router.patch("/admin/customers/:id/credit-settings", authenticate, requireAdmin,
       entityId: req.params.id,
       performedBy: req.userId!,
     }).catch(() => {});
-
     res.json({ success: true });
   } catch (err) {
     console.error("Credit settings error:", err);
@@ -313,6 +313,17 @@ router.post("/admin/bank-transfers/:id/approve", authenticate, requireAdmin, asy
       entityId: req.params.id,
       performedBy: req.userId!,
     }).catch(() => {});
+    const approvedOrder = (await query("SELECT payment_method FROM orders WHERE id = $1", [transfer.order_id])).rows[0];
+    if (approvedOrder?.payment_method === "credit") {
+      void trackFunnelEvent({
+        eventName: "repayment_received",
+        eventKey: `repayment_received:bank_transfer:${req.params.id}`,
+        userId: transfer.user_id,
+        entityType: "order",
+        entityId: transfer.order_id,
+        metadata: { amount: Number(transfer.amount), method: "bank_transfer" },
+      });
+    }
 
     res.json({ success: true, ...result });
   } catch (err: any) {
@@ -521,7 +532,7 @@ router.post("/admin/orders/:id/record-payment", authenticate, requireAdmin, vali
 
     const result = await transaction(async (client) => {
       const orderResult = await client.query(
-        "SELECT id, user_id, amount_paid, outstanding_amount, total, order_number FROM orders WHERE id = $1 FOR UPDATE",
+        "SELECT id, user_id, amount_paid, outstanding_amount, total, order_number, payment_method FROM orders WHERE id = $1 FOR UPDATE",
         [req.params.id]
       );
       if (orderResult.rows.length === 0) throw new Error("Order not found");
@@ -548,9 +559,9 @@ router.post("/admin/orders/:id/record-payment", authenticate, requireAdmin, vali
         [newPaymentStatus, newPaid, newOutstanding, req.params.id]
       );
 
-      await client.query(
+      const paymentRecord = await client.query(
         `INSERT INTO order_payments (order_id, user_id, amount, method, reference, notes, recorded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [req.params.id, ord.user_id, amount, method, reference || null, notes || null, req.userId]
       );
 
@@ -577,7 +588,7 @@ router.post("/admin/orders/:id/record-payment", authenticate, requireAdmin, vali
          JSON.stringify({ amount, method, reference }), req.userId]
       );
 
-      return { paymentStatus: newPaymentStatus, amountPaid: newPaid, outstandingAmount: newOutstanding, user_id: ord.user_id, order_number: ord.order_number };
+      return { paymentStatus: newPaymentStatus, amountPaid: newPaid, outstandingAmount: newOutstanding, user_id: ord.user_id, order_number: ord.order_number, paymentId: paymentRecord.rows[0].id, isCredit: ord.payment_method === "credit" };
     });
 
     const u4 = (await query("SELECT email, first_name, last_name FROM users WHERE id = $1", [result.user_id])).rows[0];
@@ -593,6 +604,16 @@ router.post("/admin/orders/:id/record-payment", authenticate, requireAdmin, vali
       entityId: req.params.id,
       performedBy: req.userId!,
     }).catch(() => {});
+    if (result.isCredit) {
+      void trackFunnelEvent({
+        eventName: "repayment_received",
+        eventKey: `repayment_received:${result.paymentId}`,
+        userId: result.user_id,
+        entityType: "order_payment",
+        entityId: result.paymentId,
+        metadata: { orderId: req.params.id, amount, method },
+      });
+    }
 
     res.json({ success: true, ...result });
   } catch (err: any) {
