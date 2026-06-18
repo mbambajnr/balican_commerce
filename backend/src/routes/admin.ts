@@ -1889,6 +1889,158 @@ router.post(
    ═══════════════════════════════════════════════ */
 
 router.get(
+  "/ops-report",
+  authenticate,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    const parsedDays = Number.parseInt(String(req.query.days || "7"), 10);
+    if (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 365) {
+      return res.status(400).json({ error: "days must be an integer between 1 and 365" });
+    }
+
+    try {
+      const result = await query(
+        `WITH bounds AS (
+           SELECT NOW() - ($1::int * INTERVAL '1 day') AS starts_at, NOW() AS ends_at
+         ),
+         window_requests AS (
+           SELECT sr.* FROM scout_requests sr, bounds b
+           WHERE sr.created_at >= b.starts_at AND sr.created_at <= b.ends_at
+         ),
+         request_metrics AS (
+           SELECT
+             COUNT(*)::int AS requests_created,
+             COUNT(*) FILTER (WHERE (
+               SELECT COUNT(*) FROM scout_quotes sq
+               WHERE sq.request_id = wr.id
+                 AND sq.created_at <= wr.created_at + INTERVAL '48 hours'
+             ) >= 1)::int AS requests_with_one_response_48h,
+             COUNT(*) FILTER (WHERE (
+               SELECT COUNT(*) FROM scout_quotes sq
+               WHERE sq.request_id = wr.id
+                 AND sq.created_at <= wr.created_at + INTERVAL '48 hours'
+             ) >= 2)::int AS requests_with_two_responses_48h
+           FROM window_requests wr
+         ),
+         proposal_metrics AS (
+           SELECT
+             COUNT(*)::int AS proposals_submitted,
+             COUNT(*) FILTER (WHERE sq.status = 'accepted')::int AS proposals_accepted
+           FROM scout_quotes sq, bounds b
+           WHERE sq.created_at >= b.starts_at AND sq.created_at <= b.ends_at
+         ),
+         agreement_metrics AS (
+           SELECT COUNT(*)::int AS agreements_created
+           FROM scout_agreements sa, bounds b
+           WHERE sa.agreed_at >= b.starts_at AND sa.agreed_at <= b.ends_at
+             AND sa.status != 'cancelled'
+         ),
+         order_metrics AS (
+           SELECT
+             COUNT(*) FILTER (WHERE o.scout_request_id IS NOT NULL)::int AS procurement_orders_created,
+             COUNT(*) FILTER (WHERE o.status = 'completed')::int AS orders_fulfilled
+           FROM orders o, bounds b
+           WHERE o.created_at >= b.starts_at AND o.created_at <= b.ends_at
+         ),
+         credit_metrics AS (
+           SELECT
+             COALESCE(SUM(approved_credit_limit), 0)::numeric AS total_approved_limits,
+             COALESCE(SUM(credit_used), 0)::numeric AS credit_used
+           FROM companies
+           WHERE credit_status = 'approved' OR approved_credit_limit > 0
+         ),
+         overdue_metrics AS (
+           SELECT
+             COUNT(*)::int AS overdue_orders_count,
+             COALESCE(SUM(outstanding_amount), 0)::numeric AS overdue_orders_value
+           FROM orders
+           WHERE payment_method = 'credit'
+             AND payment_status IN ('unpaid', 'partially_paid', 'overdue')
+             AND payment_due_date < CURRENT_DATE
+             AND COALESCE(outstanding_amount, total) > 0
+         ),
+         repayment_metrics AS (
+           SELECT
+             COUNT(*)::int AS repayments_received,
+             COALESCE(SUM(op.amount), 0)::numeric AS repayments_value,
+             COUNT(*) FILTER (
+               WHERE o.payment_due_date IS NOT NULL
+                 AND op.paid_at::date <= o.payment_due_date
+             )::int AS repayments_on_time
+           FROM order_payments op
+           JOIN orders o ON o.id = op.order_id
+           CROSS JOIN bounds b
+           WHERE o.payment_method = 'credit'
+             AND op.paid_at >= b.starts_at AND op.paid_at <= b.ends_at
+         )
+         SELECT b.starts_at, b.ends_at, rm.*, pm.*, am.*, om.*, cm.*, odm.*, rpm.*
+         FROM bounds b
+         CROSS JOIN request_metrics rm
+         CROSS JOIN proposal_metrics pm
+         CROSS JOIN agreement_metrics am
+         CROSS JOIN order_metrics om
+         CROSS JOIN credit_metrics cm
+         CROSS JOIN overdue_metrics odm
+         CROSS JOIN repayment_metrics rpm`,
+        [parsedDays]
+      );
+
+      const row = result.rows[0];
+      const number = (value: unknown) => Number(value || 0);
+      const percentage = (numerator: number, denominator: number) =>
+        denominator > 0 ? Math.round((numerator / denominator) * 10000) / 100 : 0;
+
+      const requestsCreated = number(row.requests_created);
+      const oneResponse = number(row.requests_with_one_response_48h);
+      const twoResponses = number(row.requests_with_two_responses_48h);
+      const proposalsSubmitted = number(row.proposals_submitted);
+      const proposalsAccepted = number(row.proposals_accepted);
+      const approvedLimits = number(row.total_approved_limits);
+      const creditUsed = number(row.credit_used);
+      const repaymentsReceived = number(row.repayments_received);
+      const repaymentsOnTime = number(row.repayments_on_time);
+
+      res.json({
+        window: { days: parsedDays, startsAt: row.starts_at, endsAt: row.ends_at },
+        sourcing: {
+          requestsCreated,
+          requestsWithOneResponse48h: oneResponse,
+          requestsWithTwoResponses48h: twoResponses,
+          oneResponseRate48h: percentage(oneResponse, requestsCreated),
+          twoResponseRate48h: percentage(twoResponses, requestsCreated),
+        },
+        proposals: {
+          submitted: proposalsSubmitted,
+          accepted: proposalsAccepted,
+          acceptanceRate: percentage(proposalsAccepted, proposalsSubmitted),
+        },
+        deals: {
+          agreementsCreated: number(row.agreements_created),
+          procurementOrdersCreated: number(row.procurement_orders_created),
+          ordersFulfilled: number(row.orders_fulfilled),
+        },
+        credit: {
+          totalApprovedLimits: approvedLimits,
+          creditUsed,
+          utilizationRate: percentage(creditUsed, approvedLimits),
+          overdueOrdersCount: number(row.overdue_orders_count),
+          overdueOrdersValue: number(row.overdue_orders_value),
+        },
+        repayments: {
+          received: repaymentsReceived,
+          value: number(row.repayments_value),
+          onTime: repaymentsOnTime,
+          onTimeRate: percentage(repaymentsOnTime, repaymentsReceived),
+        },
+      });
+    } catch (err) {
+      console.error("Operations report error:", err);
+      res.status(500).json({ error: "Failed to fetch operations report" });
+    }
+  }
+);
+
+router.get(
   "/operations/summary",
   authenticate,
   requireAdmin,

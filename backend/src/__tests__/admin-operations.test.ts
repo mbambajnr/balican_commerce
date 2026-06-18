@@ -2,7 +2,7 @@ import request from "supertest";
 import app from "../app";
 import { query } from "../config/db";
 import {
-  createTestUser, createTestCompany,
+  createTestUser, createTestCompany, createTestOrder,
   cleanupTestData, generateToken, makeEmail, makeUnique,
 } from "./helpers";
 
@@ -91,6 +91,130 @@ describe("GET /api/admin/operations/summary", () => {
       .get("/api/admin/operations/summary")
       .set("Authorization", `Bearer ${customerToken}`);
     expect(res.status).toBe(403);
+  });
+});
+
+describe("GET /api/admin/ops-report", () => {
+  it("rejects non-admin users and invalid windows", async () => {
+    const forbidden = await request(app)
+      .get("/api/admin/ops-report?days=7")
+      .set("Authorization", `Bearer ${customerToken}`);
+    expect(forbidden.status).toBe(403);
+
+    const invalid = await request(app)
+      .get("/api/admin/ops-report?days=0")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(invalid.status).toBe(400);
+  });
+
+  it("aggregates the seeded deal loop and credit metrics correctly", async () => {
+    const before = await request(app)
+      .get("/api/admin/ops-report?days=1")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(before.status).toBe(200);
+
+    const buyerCompany = await createTestCompany(makeUnique("Ops-Report-Buyer"));
+    const providerOne = await createTestCompany(makeUnique("Ops-Report-Provider-A"));
+    const providerTwo = await createTestCompany(makeUnique("Ops-Report-Provider-B"));
+    const buyer = await createTestUser({ email: makeEmail(`ops-report-buyer-${Date.now()}`), companyId: buyerCompany.id });
+    const supplierOne = await createTestUser({ email: makeEmail(`ops-report-supplier-a-${Date.now()}`), companyId: providerOne.id });
+    const supplierTwo = await createTestUser({ email: makeEmail(`ops-report-supplier-b-${Date.now()}`), companyId: providerTwo.id });
+
+    await query(
+      `UPDATE companies SET credit_status = 'approved', approved_credit_limit = 1000, credit_used = 250
+       WHERE id = $1`,
+      [buyerCompany.id]
+    );
+
+    const scout = (await query(
+      `INSERT INTO scout_requests (company_id, created_by, title, quantity, status, created_at)
+       VALUES ($1, $2, $3, 1, 'open', NOW() - INTERVAL '2 hours') RETURNING id`,
+      [buyerCompany.id, buyer.id, makeUnique("Ops report request")]
+    )).rows[0];
+
+    const quoteOne = (await query(
+      `INSERT INTO scout_quotes
+         (request_id, provider_company_id, submitted_by, quoted_price, status, created_at)
+       VALUES ($1, $2, $3, 500, 'accepted', NOW() - INTERVAL '1 hour') RETURNING id`,
+      [scout.id, providerOne.id, supplierOne.id]
+    )).rows[0];
+    await query(
+      `INSERT INTO scout_quotes
+         (request_id, provider_company_id, submitted_by, quoted_price, status, created_at)
+       VALUES ($1, $2, $3, 550, 'declined', NOW() - INTERVAL '30 minutes')`,
+      [scout.id, providerTwo.id, supplierTwo.id]
+    );
+
+    const agreement = (await query(
+      `INSERT INTO scout_agreements
+         (scout_request_id, buyer_company_id, provider_company_id, accepted_quote_id,
+          status, agreed_price, agreed_at)
+       VALUES ($1, $2, $3, $4, 'active', 500, NOW() - INTERVAL '20 minutes') RETURNING id`,
+      [scout.id, buyerCompany.id, providerOne.id, quoteOne.id]
+    )).rows[0];
+
+    const fulfilledOrder = await createTestOrder({
+      userId: buyer.id,
+      total: 500,
+      paymentMethod: "credit",
+      paymentStatus: "partially_paid",
+      amountPaid: 100,
+      status: "completed",
+    });
+    await query(
+      `UPDATE orders SET scout_request_id = $1, agreement_id = $2,
+         payment_due_date = CURRENT_DATE + 1 WHERE id = $3`,
+      [scout.id, agreement.id, fulfilledOrder.id]
+    );
+    await query(
+      `INSERT INTO order_payments (order_id, user_id, amount, method, reference, recorded_by, paid_at)
+       VALUES ($1, $2, 100, 'bank_transfer', $3, $2, NOW())`,
+      [fulfilledOrder.id, buyer.id, makeUnique("OPS-REPAYMENT")]
+    );
+
+    const overdueOrder = await createTestOrder({
+      userId: buyer.id,
+      total: 200,
+      paymentMethod: "credit",
+      paymentStatus: "unpaid",
+      status: "pending",
+    });
+    await query(
+      "UPDATE orders SET payment_due_date = CURRENT_DATE - 1 WHERE id = $1",
+      [overdueOrder.id]
+    );
+
+    const after = await request(app)
+      .get("/api/admin/ops-report?days=1")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(after.status).toBe(200);
+
+    expect(after.body.window.days).toBe(1);
+    expect(after.body.sourcing.requestsCreated - before.body.sourcing.requestsCreated).toBe(1);
+    expect(after.body.sourcing.requestsWithOneResponse48h - before.body.sourcing.requestsWithOneResponse48h).toBe(1);
+    expect(after.body.sourcing.requestsWithTwoResponses48h - before.body.sourcing.requestsWithTwoResponses48h).toBe(1);
+    expect(after.body.proposals.submitted - before.body.proposals.submitted).toBe(2);
+    expect(after.body.proposals.accepted - before.body.proposals.accepted).toBe(1);
+    expect(after.body.deals.agreementsCreated - before.body.deals.agreementsCreated).toBe(1);
+    expect(after.body.deals.procurementOrdersCreated - before.body.deals.procurementOrdersCreated).toBe(1);
+    expect(after.body.deals.ordersFulfilled - before.body.deals.ordersFulfilled).toBe(1);
+    expect(after.body.credit.totalApprovedLimits - before.body.credit.totalApprovedLimits).toBe(1000);
+    expect(after.body.credit.creditUsed - before.body.credit.creditUsed).toBe(250);
+    expect(after.body.credit.overdueOrdersCount - before.body.credit.overdueOrdersCount).toBe(1);
+    expect(after.body.credit.overdueOrdersValue - before.body.credit.overdueOrdersValue).toBe(200);
+    expect(after.body.repayments.received - before.body.repayments.received).toBe(1);
+    expect(after.body.repayments.value - before.body.repayments.value).toBe(100);
+    expect(after.body.repayments.onTime - before.body.repayments.onTime).toBe(1);
+    expect(after.body.sourcing.oneResponseRate48h).toBeCloseTo(
+      after.body.sourcing.requestsWithOneResponse48h / after.body.sourcing.requestsCreated * 100,
+      2
+    );
+
+    await query("DELETE FROM order_payments WHERE order_id = ANY($1)", [[fulfilledOrder.id, overdueOrder.id]]);
+    await query("DELETE FROM orders WHERE id = ANY($1)", [[fulfilledOrder.id, overdueOrder.id]]);
+    await query("DELETE FROM scout_agreements WHERE id = $1", [agreement.id]);
+    await query("DELETE FROM scout_quotes WHERE request_id = $1", [scout.id]);
+    await query("DELETE FROM scout_requests WHERE id = $1", [scout.id]);
   });
 });
 
