@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../config/db";
 import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
+import { dispatchOpportunityNotifications } from "../services/opportunity-notifications";
 
 const router = Router();
 
@@ -104,6 +105,10 @@ router.post(
           notes || null, categoryId || null, requestType || "product",
         ]
       );
+
+      await dispatchOpportunityNotifications(result.rows[0].id, "new").catch((err) => {
+        console.error("Scout opportunity notification error:", err);
+      });
 
       res.status(201).json({ request: result.rows[0] });
     } catch (err) {

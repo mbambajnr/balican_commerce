@@ -10,6 +10,7 @@
     "migrate-credits": "tsx src/config/migrate-credits.ts",
     "migrate-es": "tsx src/config/migrate-es.ts",
     "migrate:uploads-s3": "npm run build && node dist/src/scripts/migrate-local-uploads-to-s3.js",
+    "reminders:opportunities": "tsx src/scripts/send-opportunity-reminders.ts",
     "seed": "tsx src/seed.ts",
     "test": "jest --forceExit --detectOpenHandles",
     "test:verbose": "jest --verbose --forceExit --detectOpenHandles",

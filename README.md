@@ -417,6 +417,20 @@ cd backend && npm run typecheck
 
 ## Notification / Email Logs
 
+### Supplier opportunity reminders
+
+Run the idempotent reminder job hourly in production. It sends one reminder per
+matching provider for open sourcing requests that are at least 24 hours old and
+still have no response from that provider:
+
+```bash
+npm --workspace backend run reminders:opportunities
+```
+
+An authenticated super-admin can trigger the same job with
+`POST /api/super-admin/opportunities/send-reminders`. Repeated runs are safe;
+the notifications table's unique deduplication key prevents duplicate reminders.
+
 All key events are logged to the `email_logs` table:
 
 | Event Type                         | Description                          |

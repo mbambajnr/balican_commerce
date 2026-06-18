@@ -8,6 +8,7 @@ import {
   notifyCompanyReactivated, notifyPaymentSuspended, notifyPaymentSuspensionCleared,
   notifyVerificationApproved, notifyDocumentRejected, notifyDocumentReuploadRequested,
 } from "../services/verification-notifications";
+import { dispatchDueOpportunityReminders } from "../services/opportunity-notifications";
 
 const router = Router();
 
@@ -791,6 +792,16 @@ router.post("/verification/expire-lapsed", async (req: AuthRequest, res: Respons
   } catch (err) {
     console.error("Error expiring lapsed verifications:", err);
     res.status(500).json({ error: "Failed to expire lapsed verifications" });
+  }
+});
+
+router.post("/opportunities/send-reminders", async (_req: AuthRequest, res: Response) => {
+  try {
+    const result = await dispatchDueOpportunityReminders();
+    res.json(result);
+  } catch (err) {
+    console.error("Opportunity reminder job error:", err);
+    res.status(500).json({ error: "Failed to send opportunity reminders" });
   }
 });
 
