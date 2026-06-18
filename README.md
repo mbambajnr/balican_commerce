@@ -2,7 +2,7 @@
 
 Bali-Can Limited is a B2B solar energy equipment and installation platform. The platform enables businesses to browse products (solar panels, inverters, batteries, and accessories), request quotations, place orders, schedule service installations, and manage payments — including credit terms and bank transfers.
 
-This monorepo contains a Next.js 15 frontend and an Express/TypeScript backend, sharing a PostgreSQL database with Elasticsearch-powered product search. Authentication uses JWT (backend) and Auth.js (frontend). Payments are handled through Paystack.
+This monorepo contains a Next.js 15 frontend and an Express/TypeScript backend, sharing a PostgreSQL database with full-text and trigram product search. Authentication uses JWT (backend) and Auth.js (frontend). Payments are handled through Paystack.
 
 ## Tech Stack
 
@@ -10,16 +10,16 @@ This monorepo contains a Next.js 15 frontend and an Express/TypeScript backend, 
 | -------------- | ----------------------------------------------------------------------- |
 | **Frontend**   | Next.js 15 (App Router), React 19, Tailwind CSS 4, Framer Motion        |
 | **Backend**    | Express 4, TypeScript, Zod validation                                   |
-| **Database**   | PostgreSQL 16 (via `pg`), Elasticsearch 8.17 (product search)           |
+| **Database**   | PostgreSQL 16 via `pg` (including full-text and trigram product search)  |
 | **Auth**       | Auth.js 5 (NextAuth v5) — Credentials provider; JWT on backend          |
 | **Payments**   | Paystack (card payments), Bank Transfer (manual verification)           |
 | **Email**      | Resend (optional) — notifications logged to `email_logs` table          |
-| **Infra**      | Docker Compose (PostgreSQL + Elasticsearch)                             |
+| **Infra**      | Docker Compose (PostgreSQL + application services)                      |
 
 ## Prerequisites
 
 - **Node.js** 18+ (with npm)
-- **Docker** & **Docker Compose** (for local PostgreSQL + Elasticsearch)
+- **Docker** & **Docker Compose** (for local PostgreSQL and application services)
 - **Paystack** account (optional for development)
 
 ## Quick Start
@@ -39,7 +39,6 @@ cp frontend/.env.example frontend/.env.local
 # 4. Run all tracked database migrations
 cd backend
 npm run migrate                # Ordered PostgreSQL migrations with checksums
-npm run migrate:es             # Elasticsearch product indices
 
 # 5. Seed product catalog data
 npm run seed
@@ -70,7 +69,6 @@ npm run dev
 | `RESEND_FROM_EMAIL`    | No       | `no-reply@yourdomain.com`                 | From-address for transactional emails.                          |
 | `ALERT_WEBHOOK_URL`    | **Yes** in production | —                              | HTTPS destination for critical readiness, payment, and email alerts. |
 | `FRONTEND_URL`         | No       | `http://localhost:3000`                   | Frontend URL used for CORS and redirects; also used as base for PDF product links. |
-| `ELASTICSEARCH_URL`    | No       | `http://localhost:9200`                   | Elasticsearch connection string                                  |
 | `ADMIN_SECRET_KEY`     | No\*     | —                                         | Secret required to register admin accounts. Set a strong value. |
 | `UPLOAD_STORAGE_DRIVER` | No      | `local`                                   | Storage driver for product images (`local`). For production, consider S3-compatible object storage instead. |
 | `UPLOAD_DIR`           | No       | `uploads`                                 | Directory for local file storage (only used with `local` driver)    |
@@ -110,7 +108,7 @@ sslplan/
 │   │   │   ├── products.ts   # Product catalog, categories
 │   │   │   ├── quotations.ts # Customer-facing quotation actions
 │   │   │   └── rfqs.ts       # Request for quotation
-│   │   ├── services/         # Elasticsearch client, notification/email logging, PDF generation
+│   │   ├── services/         # Product search, notification/email logging, PDF generation
 │   │   ├── types/            # TypeScript type definitions
 │   │   ├── utils/            # Helpers (slugify, order number gen)
 │   │   ├── __tests__/        # Jest test suites
@@ -141,7 +139,7 @@ sslplan/
 │   │   └── middleware.ts     # Route protection (admin, authenticated user)
 │   ├── package.json
 │   └── next.config.js
-├── docker-compose.yml        # PostgreSQL 16 + Elasticsearch 8.17
+├── docker-compose.yml        # PostgreSQL 16 + backend/frontend/Caddy services
 ├── package.json              # Root workspace config (frontend + backend)
 └── README.md
 ```
@@ -248,14 +246,13 @@ npm run migrate
 ```
 
 The runner applies all PostgreSQL migrations in dependency order, records checksums in
-`schema_migrations`, and fails if an applied migration is edited. Elasticsearch indexing remains
-a separate optional step: `npm run migrate:es`.
+`schema_migrations`, and fails if an applied migration is edited.
 
 A `npm run seed` command is available to populate the product catalog with sample data (solar panels, inverters, batteries, etc.).
 
-### Elasticsearch
+### Product Search
 
-Elasticsearch 8.17 runs in Docker with security disabled (`xpack.security.enabled=false`) for local development. The `products` index is created and populated by `npm run migrate:es`. Product search queries are routed through the backend API and indexed with fields: `name`, `description`, `category_name`, `price`, `stock_status`, `image`.
+Product search runs in PostgreSQL using an English full-text GIN index plus `pg_trgm` name matching. Search covers product names, descriptions, short descriptions, and SKUs, with category hierarchy filters and typo tolerance. See `ES_DECISION.md` for the architecture decision and revisit triggers.
 
 ## Frontend
 
@@ -471,10 +468,10 @@ Quotation and invoice PDFs are generated server-side using **pdfkit** and attach
 
 ## Docker Compose
 
-The `docker-compose.yml` starts two services:
+The `docker-compose.yml` starts the production application stack:
 
 - **PostgreSQL 16** (`db`): Port 5432, persistent volume `pgdata`, credentials `sslplan:sslplan_dev`
-- **Elasticsearch 8.17** (`es`): Port 9200, single-node, security disabled, persistent volume `esdata`, 512MB heap
+- **Backend, frontend, and Caddy**: API, web application, and TLS reverse proxy
 
 Start with: `docker compose up -d`
 Stop with: `docker compose down`
@@ -490,7 +487,6 @@ Stop with: `docker compose down`
 | `npm start`                          | backend      | `node dist/src/index.js`             |
 | `npm run migrate`                    | backend      | All tracked PostgreSQL migrations     |
 | `npm run migrate:core`               | backend      | Legacy core migration only            |
-| `npm run migrate:es`                 | backend      | Elasticsearch index                   |
 | `npm run seed`                       | backend      | Seed product catalog                   |
 | `npm test`                           | backend      | Run all Jest tests                     |
 | `npm run test:verbose`               | backend      | Run tests with verbose output          |

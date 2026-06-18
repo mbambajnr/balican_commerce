@@ -5,7 +5,7 @@ import { authenticate, requireAdmin, AuthRequest } from "../middleware/auth";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { slugify } from "../utils/helpers";
-import { searchProducts, indexProduct, deleteProductIndex } from "../services/elasticsearch";
+import { searchProducts } from "../services/product-search";
 import {
   parseSpreadsheet,
   SpreadsheetParseError,
@@ -395,8 +395,6 @@ router.post("/", authenticate, requireAdmin, validate(z.object({
       product.category_slug = catResult.rows[0].slug;
     }
 
-    indexProduct(product).catch((err) => console.error("ES index error:", err));
-
     res.status(201).json({ product });
   } catch (err) {
     console.error("Create product error:", err);
@@ -458,12 +456,6 @@ router.put("/:id", authenticate, requireAdmin, validate(updateProductSchema), as
     if (catResult.rows.length > 0) {
       product.category_name = catResult.rows[0].name;
       product.category_slug = catResult.rows[0].slug;
-    }
-
-    if (isActive === false) {
-      deleteProductIndex(product.id).catch(() => {});
-    } else {
-      indexProduct(product).catch((err) => console.error("ES index error:", err));
     }
 
     res.json({ product });
@@ -576,7 +568,6 @@ router.post("/bulk-import", authenticate, requireAdmin, upload.single("file"), a
         );
         const product = result.rows[0];
         product.category_name = categoryName;
-        indexProduct(product).catch((err) => console.error("ES index error:", err));
         results.created++;
       } catch (err: any) {
         results.errors.push({ row: rowNum, message: err.message || "Insert failed" });

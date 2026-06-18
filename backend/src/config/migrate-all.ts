@@ -44,6 +44,7 @@ export const MIGRATIONS = [
   "migrate-verification-fees.js",
   "migrate-commissions.js",
   "migrate-funnel-events.js",
+  "migrate-postgres-search.js",
 ] as const;
 
 function checksum(filePath: string): string {

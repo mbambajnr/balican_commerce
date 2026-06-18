@@ -6,7 +6,6 @@ import { authenticate, requireAdmin, requireSuperAdmin, requireRole, AuthRequest
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { slugify } from "../utils/helpers";
-import { indexProduct, deleteProductIndex, searchProducts } from "../services/elasticsearch";
 import { notifyAndLog } from "../services/notifications";
 import { revokeCompanySessions, revokeUserSessions } from "../services/auth-session";
 import { getStorageDriver, validateImageFile } from "../services/storage";
@@ -694,7 +693,6 @@ router.post("/products", authenticate, requireAdmin, validate(productSchema), as
       product.category_slug = catResult.rows[0].slug;
     }
 
-    indexProduct(product).catch((err) => console.error("ES index error:", err));
     logActivity(req.userId!, "product.created", `Created product: ${name}`, { entity_type: "product", entity_id: product.id, product_name: name });
 
     res.status(201).json({ product });
@@ -780,12 +778,6 @@ router.patch("/products/:id", authenticate, requireAdmin, validate(adminUpdatePr
       product.category_slug = catResult.rows[0].slug;
     }
 
-    if (isActive === false) {
-      deleteProductIndex(product.id).catch(() => {});
-    } else {
-      indexProduct(product).catch((err) => console.error("ES index error:", err));
-    }
-
     logActivity(req.userId!, "product.updated", `Updated product: ${product.name}`, { entity_type: "product", entity_id: product.id });
 
     res.json({ product });
@@ -803,7 +795,6 @@ router.delete("/products/:id", authenticate, requireAdmin, async (req: AuthReque
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
 
-    deleteProductIndex(req.params.id).catch(() => {});
     logActivity(req.userId!, "product.deleted", `Soft-deleted product: ${result.rows[0].name}`, { entity_type: "product", entity_id: req.params.id });
 
     res.json({ message: "Product deactivated" });

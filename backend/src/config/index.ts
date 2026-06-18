@@ -95,9 +95,6 @@ export const config = {
   resendApiKey: process.env.RESEND_API_KEY || "",
   alertWebhookUrl: process.env.ALERT_WEBHOOK_URL || "",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
-  elasticsearch: {
-    url: process.env.ELASTICSEARCH_URL || "http://localhost:9200",
-  },
   adminSecretKey: process.env.ADMIN_SECRET_KEY || "",
   upload: {
     driver: process.env.UPLOAD_STORAGE_DRIVER || "local",

@@ -8,7 +8,6 @@
     "migrate": "npm run build && node dist/src/config/migrate-all.js",
     "migrate:core": "tsx src/config/migrate.ts",
     "migrate-credits": "tsx src/config/migrate-credits.ts",
-    "migrate-es": "tsx src/config/migrate-es.ts",
     "migrate:uploads-s3": "npm run build && node dist/src/scripts/migrate-local-uploads-to-s3.js",
     "reminders:opportunities": "tsx src/scripts/send-opportunity-reminders.ts",
     "seed": "tsx src/seed.ts",
@@ -19,7 +18,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1067.0",
     "@aws-sdk/s3-request-presigner": "^3.1067.0",
-    "@elastic/elasticsearch": "^8.17.1",
     "@sentry/node": "^10.57.0",
     "@types/pdfkit": "^0.17.6",
     "argon2": "^0.44.0",

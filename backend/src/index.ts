@@ -1,17 +1,10 @@
 import "./instrument";
 import app from "./app";
 import { assertProductionConfig, config } from "./config";
-import { ensureIndices } from "./services/elasticsearch";
 import { logger } from "./services/logger";
 
 const start = async () => {
   assertProductionConfig();
-
-  try {
-    await ensureIndices();
-  } catch (err) {
-    logger.warn("search.elasticsearch_degraded", { error: err });
-  }
 
   app.listen(config.port, () => {
     logger.info("service.started", { port: config.port });

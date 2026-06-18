@@ -14,7 +14,7 @@
 - [ ] Frontend builds: `cd frontend && npm run build`
 - [ ] `.env` files configured for production (see Step 2)
 - [ ] Database is accessible from the server
-- [ ] Elasticsearch is accessible (or disabled)
+- [ ] PostgreSQL has the `pg_trgm` extension available
 
 ---
 
@@ -38,7 +38,6 @@
 | `SENTRY_DSN` | **Yes** | Centralized exception aggregation |
 | `METRICS_TOKEN` | **Yes** | At least 32 characters; protects internal metrics |
 | `FRONTEND_URL` | **Yes** | Production frontend URL (e.g. `https://sslplan.com`) |
-| `ELASTICSEARCH_URL` | Optional | Production ES endpoint |
 | `ADMIN_SECRET_KEY` | Initial setup | `openssl rand -hex 16`; admin registration is disabled when unset |
 | `UPLOAD_STORAGE_DRIVER` | **Yes** | Must be `s3` in production |
 | `S3_BUCKET` / `S3_REGION` | **Yes** | S3-compatible object storage |
@@ -69,8 +68,6 @@ Run the tracked PostgreSQL migration runner:
 cd backend
 npm run migrate
 
-# Optional: rebuild the Elasticsearch product index
-npm run migrate:es
 ```
 
 - [ ] All migrations ran without errors
@@ -233,7 +230,7 @@ RESTORE_FORCE=true ./scripts/restore-db.sh ./backups/balican_sslplan_<timestamp>
 - [ ] Alerts cover readiness, 5xx rate, p95 latency, memory, and restart loops
 - [ ] Paystack webhook failures: Monitor `email_logs` and `orders` for unprocessed webhooks
 - [ ] Database connection pool: Watch for connection exhaustion
-- [ ] Elasticsearch: Verify indexing if ES is enabled
+- [ ] Product search: Verify exact, partial, and misspelled product queries
 
 ---
 

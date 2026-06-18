@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { authenticate, requireAdmin, AuthRequest } from "../middleware/auth";
-import { esClient, ANALYTICS_INDEX, trackAnalytics } from "../services/elasticsearch";
+import { query } from "../config/db";
 
 const router = Router();
 
@@ -9,13 +9,12 @@ router.post("/track-search", async (req: Request, res: Response) => {
     const { query: searchQuery, resultCount } = req.body;
     if (!searchQuery) return res.status(400).json({ error: "Missing query" });
 
-    await trackAnalytics({
-      type: "search",
-      query: searchQuery,
-      resultCount: resultCount || 0,
-      ip: req.ip,
-      userId: (req as any).userId || undefined,
-    });
+    await query(
+      `INSERT INTO product_analytics_events
+         (event_type, search_query, result_count, ip, user_id)
+       VALUES ('search', $1, $2, $3, $4)`,
+      [searchQuery, resultCount || 0, req.ip || null, (req as any).userId || null]
+    );
 
     res.json({ ok: true });
   } catch (err) {
@@ -29,13 +28,12 @@ router.post("/track-view", async (req: Request, res: Response) => {
     const { productId, productName } = req.body;
     if (!productId) return res.status(400).json({ error: "Missing productId" });
 
-    await trackAnalytics({
-      type: "product_view",
-      productId,
-      productName: productName || "",
-      ip: req.ip,
-      userId: (req as any).userId || undefined,
-    });
+    await query(
+      `INSERT INTO product_analytics_events
+         (event_type, product_id, product_name, ip, user_id)
+       VALUES ('product_view', $1, $2, $3, $4)`,
+      [productId, productName || "", req.ip || null, (req as any).userId || null]
+    );
 
     res.json({ ok: true });
   } catch (err) {
@@ -46,27 +44,15 @@ router.post("/track-view", async (req: Request, res: Response) => {
 
 router.get("/popular-searches", authenticate, requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
-    const result = await esClient.search({
-      index: ANALYTICS_INDEX,
-      size: 0,
-      query: { term: { type: "search" } },
-      aggs: {
-        popular: {
-          terms: { field: "query", size: 20, min_doc_count: 1 },
-          aggs: {
-            hits: { top_hits: { size: 1, _source: ["timestamp"] } },
-          },
-        },
-      },
-    });
-
-    const buckets: any[] = (result.aggregations as any)?.popular?.buckets || [];
     res.json({
-      searches: buckets.map((b: any) => ({
-        query: b.key,
-        count: b.doc_count,
-        lastSearched: b.hits?.hits?.hits?.[0]?._source?.timestamp || null,
-      })),
+      searches: (await query(
+        `SELECT search_query AS query, COUNT(*)::int AS count, MAX(created_at) AS "lastSearched"
+         FROM product_analytics_events
+         WHERE event_type = 'search' AND search_query IS NOT NULL
+         GROUP BY search_query
+         ORDER BY count DESC, "lastSearched" DESC
+         LIMIT 20`
+      )).rows,
     });
   } catch (err) {
     console.error("Popular searches error:", err);
@@ -76,27 +62,17 @@ router.get("/popular-searches", authenticate, requireAdmin, async (_req: AuthReq
 
 router.get("/popular-products", authenticate, requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
-    const result = await esClient.search({
-      index: ANALYTICS_INDEX,
-      size: 0,
-      query: { term: { type: "product_view" } },
-      aggs: {
-        popular: {
-          terms: { field: "product_id", size: 20, min_doc_count: 1 },
-          aggs: {
-            product_name: { top_hits: { size: 1, _source: ["product_name"] } },
-          },
-        },
-      },
-    });
-
-    const buckets: any[] = (result.aggregations as any)?.popular?.buckets || [];
     res.json({
-      products: buckets.map((b: any) => ({
-        productId: b.key,
-        productName: b.product_name?.hits?.hits?.[0]?._source?.product_name || "Unknown",
-        views: b.doc_count,
-      })),
+      products: (await query(
+        `SELECT product_id AS "productId",
+           COALESCE((ARRAY_AGG(product_name ORDER BY created_at DESC))[1], 'Unknown') AS "productName",
+           COUNT(*)::int AS views
+         FROM product_analytics_events
+         WHERE event_type = 'product_view' AND product_id IS NOT NULL
+         GROUP BY product_id
+         ORDER BY views DESC
+         LIMIT 20`
+      )).rows,
     });
   } catch (err) {
     console.error("Popular products error:", err);
@@ -106,23 +82,15 @@ router.get("/popular-products", authenticate, requireAdmin, async (_req: AuthReq
 
 router.get("/search-volume", authenticate, requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
-    const result = await esClient.search({
-      index: ANALYTICS_INDEX,
-      size: 0,
-      query: { term: { type: "search" } },
-      aggs: {
-        daily: {
-          date_histogram: { field: "timestamp", calendar_interval: "day", format: "yyyy-MM-dd" },
-        },
-      },
-    });
-
-    const buckets: any[] = (result.aggregations as any)?.daily?.buckets || [];
     res.json({
-      volume: buckets.map((b: any) => ({
-        date: b.key_as_string,
-        count: b.doc_count,
-      })),
+      volume: (await query(
+        `SELECT TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date,
+           COUNT(*)::int AS count
+         FROM product_analytics_events
+         WHERE event_type = 'search'
+         GROUP BY date
+         ORDER BY date ASC`
+      )).rows,
     });
   } catch (err) {
     console.error("Search volume error:", err);

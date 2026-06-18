@@ -83,7 +83,7 @@ Checklist variables intentionally not validated by backend startup:
 | `PORT` | Optional runtime listener port with default `4000`. |
 | `JWT_EXPIRES_IN` | Optional duration with default `1h`. |
 | `PAYSTACK_WEBHOOK_SECRET` | Optional; webhook verification falls back to `PAYSTACK_SECRET_KEY`. |
-| `ELASTICSEARCH_URL` | Optional; search has SQL fallback when ES is unavailable/empty. |
+| Product search | PostgreSQL full-text and trigram indexes are installed by the canonical migration runner. |
 | `ADMIN_SECRET_KEY` | Initial setup secret; admin registration is disabled when unset. |
 | `BACKUP_ENCRYPTION_KEY` | Validated by backup scripts, not backend app startup. |
 | `BACKUP_RCLONE_REMOTE` | Validated/used by backup scripts, not backend app startup. |
