@@ -11,93 +11,18 @@ import { sendEmail } from "../services/email";
 import { generateInvoicePdf, InvoicePdfData, InvoicePdfItem } from "../services/pdf";
 import { accrueCommissionForCompletedOrder, alertCommissionAccrualFailure } from "../services/commissions";
 import { trackFunnelEvent } from "../services/funnel-events";
+import {
+  calculatePaymentApplication,
+  generateInvoiceNumber,
+  generateOrderNumber,
+  resolveLifecycleTransition,
+  validatePaystackPayment,
+  VALID_SERVICE_STATUSES,
+} from "../services/order-domain";
 
 const FRONTEND_URL = config.frontendUrl;
 
 const router = Router();
-
-function genOrderNumber() {
-  return `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-}
-
-function genInvoiceNumber() {
-  return `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-}
-
-async function logActivity(entityType: string, entityId: string, type: string, description: string, metadata: Record<string, any> = {}, userId?: string) {
-  await query(
-    `INSERT INTO activities (entity_type, entity_id, type, description, metadata, user_id)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [entityType, entityId, type, description, JSON.stringify(metadata), userId || null]
-  );
-}
-
-async function createInvoice(order: any, client?: any) {
-  const q = client ? client.query.bind(client) : query;
-  const invoiceNumber = genInvoiceNumber();
-  const total = parseFloat(order.total);
-  const subtotal = parseFloat(order.subtotal || "0");
-  const tax = parseFloat(order.tax || "0");
-  const amountPaid = parseFloat(order.amount_paid || "0");
-  const outstanding = Math.max(0, total - amountPaid);
-
-  const status = outstanding <= 0 ? "paid" : amountPaid > 0 ? "partially_paid" : "issued";
-
-  const result = await q(
-    `INSERT INTO invoices (order_id, invoice_number, status, subtotal, tax, total, amount_paid, outstanding_amount,
-      due_date, payment_terms, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     RETURNING *`,
-    [order.id, invoiceNumber, status, subtotal, tax, total, amountPaid, outstanding,
-     order.payment_due_date || null, order.payment_terms || null, order.notes || null]
-  );
-
-  await q(
-    `INSERT INTO activities (entity_type, entity_id, type, description, metadata)
-     VALUES ($1, $2, $3, $4, $5)`,
-    ["order", order.id, "invoice.issued", `Invoice ${invoiceNumber} issued`,
-     JSON.stringify({ invoiceNumber, total, status, amountPaid })]
-  );
-
-  return result.rows[0];
-}
-
-async function updateInvoiceFromOrder(orderId: string, client?: any) {
-  const q = client ? client.query.bind(client) : query;
-  const order = (await q("SELECT * FROM orders WHERE id = $1", [orderId])).rows[0];
-  if (!order) return;
-
-  const total = parseFloat(order.total);
-  const amountPaid = parseFloat(order.amount_paid || "0");
-  const outstanding = Math.max(0, total - amountPaid);
-
-  const invoiceStatus = outstanding <= 0 ? "paid" : amountPaid > 0 ? "partially_paid"
-    : order.payment_status === "overdue" ? "overdue" : "pending_payment";
-
-  const inv = await q(
-    `UPDATE invoices SET amount_paid = $1, outstanding_amount = $2, status = $3, updated_at = NOW()
-     WHERE order_id = $4 RETURNING *`,
-    [amountPaid, outstanding, invoiceStatus, orderId]
-  );
-
-  if (inv.rows.length > 0) {
-    if (invoiceStatus === "paid") {
-      await q(`UPDATE invoices SET paid_at = NOW() WHERE id = $1`, [inv.rows[0].id]);
-      if (!client) {
-        await logActivity("order", orderId, "invoice.paid", `Invoice ${inv.rows[0].invoice_number} paid in full`);
-      }
-    } else if (invoiceStatus === "partially_paid") {
-      if (!client) {
-        await logActivity("order", orderId, "invoice.partially_paid",
-          `Invoice ${inv.rows[0].invoice_number} partially paid (GH₵${amountPaid.toLocaleString()} of GH₵${total.toLocaleString()})`);
-      }
-    } else if (invoiceStatus === "overdue") {
-      if (!client) {
-        await logActivity("order", orderId, "invoice.overdue", `Invoice ${inv.rows[0].invoice_number} overdue`);
-      }
-    }
-  }
-}
 
 /* ── Create direct order (checkout) ── */
 
@@ -125,7 +50,7 @@ const createOrderSchema = z.object({
 router.post("/", authenticate, requireCompanyActive, validate(createOrderSchema),   async (req: AuthRequest, res: Response) => {
   try {
     const { items, subtotal, tax, total, paymentMethod, poNumber, idempotencyKey, notes, orderType, utm_source, utm_campaign, utm_medium, order_source } = req.body;
-    const orderNumber = genOrderNumber();
+    const orderNumber = generateOrderNumber();
     const idemHash = idempotencyKey
       ? crypto.createHash("sha256").update(idempotencyKey).digest("hex").substring(0, 16)
       : null;
@@ -215,7 +140,7 @@ router.post("/", authenticate, requireCompanyActive, validate(createOrderSchema)
       }
 
       // Create invoice
-      const invNum = genInvoiceNumber();
+      const invNum = generateInvoiceNumber();
       const invStatus = paymentMethod === "paystack" ? "pending_payment"
         : paymentMethod === "bank_transfer" ? "pending_payment"
         : "issued";
@@ -362,7 +287,7 @@ router.post("/from-quotation/:id", authenticate, requireAdmin, async (req: AuthR
       quantity: i.quantity,
     }));
 
-    const orderNumber = genOrderNumber();
+    const orderNumber = generateOrderNumber();
 
     const result = await transaction(async (client) => {
       const qResult = await client.query(
@@ -422,7 +347,7 @@ router.post("/from-quotation/:id", authenticate, requireAdmin, async (req: AuthR
         [total, customerUser.id]
       );
 
-      const invNum = genInvoiceNumber();
+      const invNum = generateInvoiceNumber();
       const invResult = await client.query(
         `INSERT INTO invoices (order_id, invoice_number, status, subtotal, tax, total,
           amount_paid, outstanding_amount, due_date, payment_terms, notes)
@@ -939,9 +864,15 @@ router.post("/paystack-webhook", async (req, res: Response) => {
           const payment = verificationPayment.rows[0];
           if (payment.status === "paid") return;
 
-          const expectedPesewas = Math.round(Number(payment.amount) * 100);
-          const amountMatches = Number.isInteger(paystackAmount) && paystackAmount === expectedPesewas;
-          const currencyMatches = paystackCurrency === payment.currency && paystackCurrency === config.paystack.currency;
+          const verification = validatePaystackPayment(
+            Number(payment.amount),
+            paystackAmount,
+            paystackCurrency,
+            payment.currency,
+          );
+          const expectedPesewas = verification.expectedAmount;
+          const amountMatches = verification.amountMatches;
+          const currencyMatches = verification.currencyMatches && paystackCurrency === config.paystack.currency;
 
           if (!amountMatches || !currencyMatches) {
             emitCriticalAlert("payment.verification_fee_mismatch", {
@@ -1014,9 +945,15 @@ router.post("/paystack-webhook", async (req, res: Response) => {
         const ord = order.rows[0];
         const total = parseFloat(ord.total);
 
-        const expectedKobo = Math.round(total * 100);
-        const amountMatches = Number.isInteger(paystackAmount) && paystackAmount === expectedKobo;
-        const currencyMatches = paystackCurrency === config.paystack.currency;
+        const paymentValidation = validatePaystackPayment(
+          total,
+          paystackAmount,
+          paystackCurrency,
+          config.paystack.currency,
+        );
+        const expectedKobo = paymentValidation.expectedAmount;
+        const amountMatches = paymentValidation.amountMatches;
+        const currencyMatches = paymentValidation.currencyMatches;
         if (!amountMatches || !currencyMatches) {
           emitCriticalAlert("payment.paystack_mismatch", {
             reference,
@@ -1136,16 +1073,6 @@ router.post("/paystack-webhook", async (req, res: Response) => {
  *   processing → cancelled (supplier only, reason required)
  */
 
-const SUPPLIER_FORWARD_TRANSITIONS: Record<string, string> = {
-  pending: "confirmed",
-  confirmed: "processing",
-  processing: "ready_or_shipped",
-  ready_or_shipped: "delivered",
-};
-
-const SUPPLIER_CANCEL_FROM = ["pending", "confirmed", "processing"];
-const BUYER_CANCEL_FROM = ["pending"];
-
 const lifecycleSchema = z.object({
   action: z.enum(["advance", "complete", "cancel"]),
   note: z.string().max(1000).optional(),
@@ -1190,67 +1117,18 @@ router.patch("/:id/lifecycle", authenticate, requireCompanyActive, validate(life
     }
 
     const currentStatus = order.status;
-    let newStatus: string | null = null;
-
-    // Prevent changing final-state orders
-    if (currentStatus === "completed") {
-      return res.status(400).json({ error: "Completed orders cannot be changed" });
+    const transitionDecision = resolveLifecycleTransition({
+      currentStatus,
+      action,
+      note,
+      isBuyer,
+      isSupplier,
+      isAdmin,
+    });
+    if (!transitionDecision.ok) {
+      return res.status(transitionDecision.status).json(transitionDecision.body);
     }
-    if (currentStatus === "cancelled") {
-      return res.status(400).json({ error: "Cancelled orders cannot be changed" });
-    }
-
-    if (action === "advance") {
-      // Only supplier (or admin) can advance
-      if (!isSupplier && !isAdmin) {
-        return res.status(403).json({ error: "Only the supplier can advance order status" });
-      }
-      newStatus = SUPPLIER_FORWARD_TRANSITIONS[currentStatus];
-      if (!newStatus) {
-        return res.status(400).json({
-          error: `Cannot advance from status "${currentStatus}"`,
-          currentStatus,
-        });
-      }
-    } else if (action === "complete") {
-      // Only buyer (or admin) can mark as completed
-      if (!isBuyer && !isAdmin) {
-        return res.status(403).json({ error: "Only the buyer can mark an order as completed" });
-      }
-      if (currentStatus !== "delivered") {
-        return res.status(400).json({
-          error: "Order must be in 'delivered' status to mark as completed",
-          currentStatus,
-        });
-      }
-      newStatus = "completed";
-    } else if (action === "cancel") {
-      if (!note?.trim()) {
-        return res.status(400).json({ error: "Reason is required for cancellation" });
-      }
-      if (isSupplier || isAdmin) {
-        if (!SUPPLIER_CANCEL_FROM.includes(currentStatus)) {
-          return res.status(400).json({
-            error: `Supplier cannot cancel an order in "${currentStatus}" status`,
-            currentStatus,
-          });
-        }
-      } else if (isBuyer) {
-        if (!BUYER_CANCEL_FROM.includes(currentStatus)) {
-          return res.status(400).json({
-            error: `Buyer can only cancel orders that are still pending`,
-            currentStatus,
-          });
-        }
-      }
-      newStatus = "cancelled";
-    }
-
-    if (!newStatus) {
-      return res.status(400).json({ error: "Invalid action" });
-    }
-
-    const role = isAdmin ? "admin" : isSupplier ? "supplier" : "buyer";
+    const { newStatus, role } = transitionDecision;
 
     let commissionLedgerId: string | undefined;
     await transaction(async (client) => {
@@ -1368,11 +1246,9 @@ router.get("/:id/history", authenticate, async (req: AuthRequest, res: Response)
 
 /* ── Admin: update order status ── */
 
-const validServiceStatuses = ["requested", "scheduled", "assigned", "in_progress", "completed", "cancelled"] as const;
-
 router.patch("/:id/status", authenticate, requireAdmin, validate(z.object({
   status: z.enum(["pending", "paid", "processing", "completed", "cancelled"]).optional(),
-  serviceStatus: z.enum(validServiceStatuses).optional(),
+  serviceStatus: z.enum(VALID_SERVICE_STATUSES).optional(),
 })), async (req: AuthRequest, res: Response) => {
   try {
     const order = await query("SELECT * FROM orders WHERE id = $1", [req.params.id]);
@@ -1418,9 +1294,10 @@ router.post("/:id/payments", authenticate, requireAdmin, validate(z.object({
 
     const prevPaid = parseFloat(ord.amount_paid || "0");
     const total = parseFloat(ord.total);
-    const newPaid = prevPaid + amount;
+    const payment = calculatePaymentApplication(total, prevPaid, amount);
+    const newPaid = payment.amountPaid;
 
-    if (newPaid > total) {
+    if (payment.exceedsTotal) {
       return res.status(400).json({
         error: "Payment exceeds order total",
         orderTotal: total,
@@ -1430,8 +1307,8 @@ router.post("/:id/payments", authenticate, requireAdmin, validate(z.object({
     }
 
     await transaction(async (client) => {
-      const newOutstanding = Math.max(0, total - newPaid);
-      const newPaymentStatus = newOutstanding <= 0 ? "paid" : "partially_paid";
+      const newOutstanding = payment.outstandingAmount;
+      const newPaymentStatus = payment.paymentStatus;
 
       await client.query(
         `UPDATE orders SET payment_status = $1, amount_paid = $2, outstanding_amount = $3, updated_at = NOW() WHERE id = $4`,
