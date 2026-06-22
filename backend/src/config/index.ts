@@ -114,4 +114,5 @@ export const config = {
   sentryDsn: process.env.SENTRY_DSN || "",
   release: process.env.APP_RELEASE || process.env.GIT_SHA || "development",
   metricsToken: process.env.METRICS_TOKEN || "",
+  backupStatusFile: process.env.BACKUP_STATUS_FILE || "backups/.last-success",
 };

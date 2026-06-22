@@ -19,6 +19,7 @@ import {
   validatePaystackPayment,
   VALID_SERVICE_STATUSES,
 } from "../services/order-domain";
+import { PaymentWebhookOutcome, recordPaymentWebhookOutcome } from "../services/metrics";
 
 const FRONTEND_URL = config.frontendUrl;
 
@@ -799,6 +800,7 @@ router.post("/:id/paystack-init", authenticate, requireCompanyActive, async (req
 /* ── Paystack webhook ── */
 
 router.post("/paystack-webhook", async (req, res: Response) => {
+  let webhookOutcome: PaymentWebhookOutcome = "ignored";
   try {
     // Resolve the signing key (allow env override so tests can inject per-test keys)
     const signingKey = process.env.PAYSTACK_WEBHOOK_SECRET
@@ -810,12 +812,14 @@ router.post("/paystack-webhook", async (req, res: Response) => {
     // Use process.env directly (not config.nodeEnv) so tests can toggle it
     if (!signingKey && process.env.NODE_ENV === "production") {
       console.error("Webhook rejected: PAYSTACK_SECRET_KEY is not configured in production");
+      recordPaymentWebhookOutcome("error");
       return res.status(500).json({ error: "Webhook not configured" });
     }
 
     if (signingKey) {
       const signature = req.headers["x-paystack-signature"] as string;
       if (!signature) {
+        recordPaymentWebhookOutcome("invalid_signature");
         return res.status(401).json({ error: "Missing Paystack signature" });
       }
 
@@ -827,6 +831,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
         .digest("hex");
 
       if (hash !== signature) {
+        recordPaymentWebhookOutcome("invalid_signature");
         return res.status(401).json({ error: "Invalid Paystack signature" });
       }
     }
@@ -839,6 +844,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
 
       if (typeof reference !== "string" || reference.length === 0) {
         console.error("Paystack webhook rejected: missing transaction reference");
+        recordPaymentWebhookOutcome("invalid_request");
         return res.sendStatus(200);
       }
 
@@ -848,6 +854,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
           [reference]
         );
         if (existingPayment.rows.length > 0) {
+          webhookOutcome = "duplicate";
           return;
         }
 
@@ -862,7 +869,10 @@ router.post("/paystack-webhook", async (req, res: Response) => {
         );
         if (verificationPayment.rows.length > 0) {
           const payment = verificationPayment.rows[0];
-          if (payment.status === "paid") return;
+          if (payment.status === "paid") {
+            webhookOutcome = "duplicate";
+            return;
+          }
 
           const verification = validatePaystackPayment(
             Number(payment.amount),
@@ -875,6 +885,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
           const currencyMatches = verification.currencyMatches && paystackCurrency === config.paystack.currency;
 
           if (!amountMatches || !currencyMatches) {
+            webhookOutcome = "mismatch";
             emitCriticalAlert("payment.verification_fee_mismatch", {
               reference,
               companyId: payment.company_id,
@@ -882,7 +893,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
               receivedAmount: paystackAmount,
               expectedCurrency: payment.currency,
               receivedCurrency: paystackCurrency ?? null,
-            }, 0);
+            });
             await client.query(
               `INSERT INTO activity_logs (company_id, user_id, action, description, metadata)
                VALUES ($1, $2, $3, $4, $5)`,
@@ -931,6 +942,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
             entityId: payment.id,
             performedBy: "system",
           }).catch(() => {});
+          webhookOutcome = "success";
           return;
         }
 
@@ -939,6 +951,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
           [reference]
         );
         if (order.rows.length === 0) {
+          webhookOutcome = "unknown_reference";
           return;
         }
 
@@ -955,6 +968,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
         const amountMatches = paymentValidation.amountMatches;
         const currencyMatches = paymentValidation.currencyMatches;
         if (!amountMatches || !currencyMatches) {
+          webhookOutcome = "mismatch";
           emitCriticalAlert("payment.paystack_mismatch", {
             reference,
             orderId: ord.id,
@@ -962,7 +976,7 @@ router.post("/paystack-webhook", async (req, res: Response) => {
             receivedAmount: paystackAmount,
             expectedCurrency: config.paystack.currency,
             receivedCurrency: paystackCurrency ?? null,
-          }, 0);
+          });
           await client.query(
             `INSERT INTO activities (entity_type, entity_id, type, description, metadata, user_id)
              VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1046,10 +1060,16 @@ router.post("/paystack-webhook", async (req, res: Response) => {
             performedBy: "system",
           }).catch(() => {});
         }
+        webhookOutcome = "success";
       });
     }
+    recordPaymentWebhookOutcome(webhookOutcome);
     res.sendStatus(200);
   } catch (err) {
+    recordPaymentWebhookOutcome("error");
+    emitCriticalAlert("payment.webhook_processing_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     console.error("Webhook error:", err);
     res.sendStatus(200);
   }

@@ -341,7 +341,9 @@ Company registration creates the company and initial company-admin user in one d
 
 - Every response includes `X-Request-ID`; valid client-supplied IDs are propagated.
 - API completion and unhandled-error logs are emitted as redacted JSON with latency, status, request ID, and authenticated user/company IDs when available.
-- Critical readiness, Paystack mismatch, and email-delivery events are sent to `ALERT_WEBHOOK_URL` with a one-minute duplicate-alert cooldown.
+- Critical readiness, latency, Paystack, email-delivery, and backup-recency events are sent to `ALERT_WEBHOOK_URL` with duplicate-alert cooldowns.
+- `/internal/metrics` exports HTTP latency and availability, payment-webhook outcomes, email-delivery outcomes, readiness state, and backup age for Prometheus.
+- Service objectives, PromQL, alert triggers, and operator actions are documented in [`SLO.md`](SLO.md).
 - Error responses handled by the central middleware include the request ID for support correlation.
 
 ## Testing

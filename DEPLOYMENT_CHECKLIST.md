@@ -215,7 +215,7 @@ RESTORE_FORCE=true ./scripts/restore-db.sh ./backups/balican_sslplan_<timestamp>
 - [ ] `BACKUP_ENCRYPTION_KEY` stored outside the server and repository
 - [ ] `BACKUP_RCLONE_REMOTE` points to versioned off-site storage
 - [ ] Latest encrypted backup and checksum exist off-site
-- [ ] Monthly restore drill passed and evidence recorded
+- [ ] Quarterly restore drill passed and evidence recorded
 - [ ] Previous build artifacts accessible (or tagged in git)
 - [ ] Automatic rollback tested in staging by forcing a health-gate failure
 
@@ -224,11 +224,12 @@ RESTORE_FORCE=true ./scripts/restore-db.sh ./backups/balican_sslplan_<timestamp>
 ## 9. Monitoring & Alerts
 
 - [ ] Backend logs: Ensure stdout/stderr are captured by your process manager (systemd, PM2, Docker)
-- [ ] Health check endpoint monitored (expect 200, JSON with `status: "ok"`)
+- [ ] Readiness endpoint `/api/ready` monitored (expect 200, JSON with `status: "ready"`)
 - [ ] Sentry receives a controlled test exception tagged with `APP_RELEASE`
 - [ ] Prometheus scrapes `/internal/metrics` with `METRICS_TOKEN`
-- [ ] Alerts cover readiness, 5xx rate, p95 latency, memory, and restart loops
-- [ ] Paystack webhook failures: Monitor `email_logs` and `orders` for unprocessed webhooks
+- [ ] Alerts and Prometheus queries in `SLO.md` are configured and exercised
+- [ ] Paystack webhook outcomes and mismatches appear in `balican_payment_webhook_events_total`
+- [ ] Backup age is below 26 hours in `balican_backup_age_seconds`
 - [ ] Database connection pool: Watch for connection exhaustion
 - [ ] Product search: Verify exact, partial, and misspelled product queries
 

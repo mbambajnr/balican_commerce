@@ -27,6 +27,7 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
+      - ./backups:/app/backups:ro
     environment:
       NODE_ENV: production
       PORT: "4000"
@@ -44,6 +45,7 @@ services:
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
       APP_RELEASE: ${APP_RELEASE:-development}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      BACKUP_STATUS_FILE: /app/backups/.last-success
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:-}
       UPLOAD_STORAGE_DRIVER: ${UPLOAD_STORAGE_DRIVER:-s3}
       UPLOAD_DIR: /app/uploads

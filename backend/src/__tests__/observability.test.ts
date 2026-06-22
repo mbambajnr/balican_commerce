@@ -6,6 +6,15 @@ import { observability } from "../middleware/observability";
 import { emitCriticalAlert, resetAlertCooldownsForTests } from "../services/alerts";
 import { formatLog } from "../services/logger";
 import { config } from "../config";
+import { mkdtemp, rm, utimes, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
+import {
+  recordEmailDeliveryOutcome,
+  recordPaymentWebhookOutcome,
+  refreshBackupMetrics,
+  renderMetrics,
+} from "../services/metrics";
 
 describe("observability", () => {
   test("propagates a valid request ID", async () => {
@@ -99,5 +108,41 @@ describe("observability", () => {
     expect(response.text).toContain("balican_process_cpu");
 
     config.metricsToken = previousToken;
+  });
+
+  test("exports payment, email, and backup SLO metrics", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "balican-slo-"));
+    const marker = path.join(directory, ".last-success");
+    await writeFile(marker, "ok\n");
+
+    recordPaymentWebhookOutcome("success");
+    recordEmailDeliveryOutcome("sent");
+    await refreshBackupMetrics(marker);
+    const output = await renderMetrics();
+
+    expect(output).toContain('balican_payment_webhook_events_total{outcome="success"}');
+    expect(output).toContain('balican_email_deliveries_total{outcome="sent"}');
+    expect(output).toContain("balican_backup_age_seconds");
+
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  test("rate-limits stale backup alerts", async () => {
+    resetAlertCooldownsForTests();
+    process.env.ENABLE_TEST_LOGS = "true";
+    const directory = await mkdtemp(path.join(tmpdir(), "balican-stale-backup-"));
+    const marker = path.join(directory, ".last-success");
+    await writeFile(marker, "old\n");
+    const oldDate = new Date(Date.now() - 27 * 60 * 60 * 1000);
+    await utimes(marker, oldDate, oldDate);
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await refreshBackupMetrics(marker);
+    await refreshBackupMetrics(marker);
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+    delete process.env.ENABLE_TEST_LOGS;
+    await rm(directory, { recursive: true, force: true });
   });
 });

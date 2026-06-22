@@ -77,5 +77,7 @@ find "$BACKUP_DIR" -type f \
   \( -name "balican_*.dump" -o -name "balican_*.dump.enc" -o -name "balican_*.sha256" \) \
   -mtime +"${BACKUP_RETENTION_DAYS:-14}" -delete
 
+touch "$BACKUP_DIR/.last-success"
+
 trap - EXIT
 echo "Backup complete: $final_file"
