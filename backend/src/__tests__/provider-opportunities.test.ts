@@ -16,6 +16,7 @@ let scoutRequestId2: string;
 let scoutRequestId3: string;
 let buyerCompanyId: string;
 let categoryId: string;
+let categorySlug: string;
 
 async function post(url: string, body?: any, token?: string) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -31,16 +32,23 @@ async function get(url: string, token?: string) {
   return { status: res.status, body: await res.json() } as any;
 }
 
+async function put(url: string, body: any, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${baseUrl}${url}`, { method: "PUT", headers, body: JSON.stringify(body) });
+  return { status: res.status, body: await res.json() } as any;
+}
+
 beforeAll(async () => {
   server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, () => resolve()));
   const addr = server.address() as any;
   baseUrl = `http://127.0.0.1:${addr.port}/api`;
 
-  const catSlug = `${TEST_PREFIX}hvac-${Date.now()}`.toLowerCase();
+  categorySlug = `${TEST_PREFIX}hvac-${Date.now()}`.toLowerCase();
   const catResult = await query(
     `INSERT INTO categories (name, slug, description) VALUES ($1,$2,$3) RETURNING id`,
-    [`${TEST_PREFIX}HVAC`, catSlug, "Test HVAC"]
+    [`${TEST_PREFIX}HVAC`, categorySlug, "Test HVAC"]
   );
   categoryId = catResult.rows[0].id;
 
@@ -62,6 +70,7 @@ beforeAll(async () => {
     [`${TEST_PREFIX}Provider Co`, `${TEST_PREFIX}prov-${Date.now()}@test.com`]
   );
   const providerCompanyId = providerCompany.rows[0].id;
+  await query("UPDATE companies SET business_categories = $1 WHERE id = $2", [[categorySlug], providerCompanyId]);
 
   const providerUser = await createTestUserFast({
     email: `${TEST_PREFIX}provider-user-${Date.now()}@test.com`,
@@ -167,6 +176,11 @@ describe("GET /api/provider/opportunities", () => {
     expect(Array.isArray(body.opportunities)).toBe(true);
     expect(body.opportunities.length).toBeGreaterThanOrEqual(2);
     expect(body.pagination).toBeDefined();
+    expect(body.insights).toMatchObject({
+      hasCategories: true,
+      requestsInCategoriesLast60Days: 3,
+      verificationStatus: "approved",
+    });
 
     const opp = body.opportunities.find((o: any) => o.id === scoutRequestId1);
     expect(opp).toBeDefined();
@@ -235,6 +249,17 @@ describe("GET /api/provider/opportunities", () => {
     for (const opp of body.opportunities) {
       expect(opp.title).toContain("HVAC");
     }
+  });
+});
+
+describe("PUT /api/provider/profile", () => {
+  it("saves supplier category selection used by opportunity insights", async () => {
+    const { status } = await put("/provider/profile", { businessCategories: [categorySlug] }, providerToken);
+    expect(status).toBe(200);
+
+    const { body } = await get("/provider/opportunities", providerToken);
+    expect(body.insights.categories).toEqual([categorySlug]);
+    expect(body.insights.requestsInCategoriesLast60Days).toBe(3);
   });
 });
 

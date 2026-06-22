@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import ProviderReadinessCard from "@/components/ProviderReadinessCard";
 import { Package, Wrench as WrenchIcon, FileText, CalendarCheck, ArrowRight, IdentificationCard } from "@phosphor-icons/react";
 
 const statIcons: Record<string, any> = {
@@ -32,6 +33,7 @@ export default function ProviderDashboardPage() {
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
   const [recentServices, setRecentServices] = useState<any[]>([]);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
+  const [opportunityInsights, setOpportunityInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function ProviderDashboardPage() {
         setRecentProducts(res.recentProducts || []);
         setRecentServices(res.recentServices || []);
         setBusinessProfile(res.businessProfile);
+        setOpportunityInsights(res.opportunityInsights);
       } catch {
         toast.error("Failed to load dashboard");
       } finally {
@@ -74,6 +77,8 @@ export default function ProviderDashboardPage() {
           <Link href="/account/company-profile?returnTo=%2Fprovider" className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-amber-900">Complete profile <ArrowRight size={15} /></Link>
         </div>
       )}
+
+      <ProviderReadinessCard insights={opportunityInsights} businessProfile={businessProfile} />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {stats && Object.entries(stats).map(([key, value]) => {

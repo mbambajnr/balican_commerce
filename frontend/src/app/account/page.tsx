@@ -594,7 +594,7 @@ export default function CompanyDashboard() {
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-12 text-center">
             <ShoppingBag size={36} className="text-muted" weight="light" />
             <p className="text-sm text-soft">No orders yet</p>
-            <Link href="/products" className="btn btn-primary btn-sm">Browse Products</Link>
+            <Link href="/scout/new" className="btn btn-primary btn-sm">Post a Sourcing Request</Link>
           </div>
         )}
       </div>

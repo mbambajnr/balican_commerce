@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import ProviderReadinessCard from "@/components/ProviderReadinessCard";
 import {
   MagnifyingGlass, Funnel, MapPin, Calendar, Cube, Wrench,
   CurrencyCircleDollar, Clock, CaretLeft, CaretRight,
@@ -28,6 +29,8 @@ function deadlineLabel(d: string | null): string {
 export default function ProviderOpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [pagination, setPagination] = useState<any>(null);
+  const [insights, setInsights] = useState<any>(null);
+  const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -41,6 +44,7 @@ export default function ProviderOpportunitiesPage() {
 
   useEffect(() => {
     api.getMarketplaceCategories().then(r => setCategories(r.categories)).catch(() => {});
+    api.getCompanyProfile().then(r => setBusinessProfile(r.completion)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -57,6 +61,7 @@ export default function ProviderOpportunitiesPage() {
       }).then(r => {
         setOpportunities(r.opportunities);
         setPagination(r.pagination);
+        setInsights(r.insights);
       }).catch(() => {}).finally(() => setLoading(false));
     }, FILTER_DEBOUNCE);
     return () => clearTimeout(timer);
@@ -70,6 +75,8 @@ export default function ProviderOpportunitiesPage() {
           Browse open procurement requests from buyers. Submit proposals to win business.
         </p>
       </div>
+
+      <div className="mb-6"><ProviderReadinessCard insights={insights} businessProfile={businessProfile} /></div>
 
       {/* Filters */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
@@ -114,10 +121,13 @@ export default function ProviderOpportunitiesPage() {
           ))}
         </div>
       ) : opportunities.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-white p-12 text-center">
+        <div className="rounded-xl border border-dashed border-border bg-white px-5 py-10 text-center sm:p-12">
           <Funnel size={32} className="mx-auto text-soft" />
-          <p className="mt-3 font-medium text-ink">No opportunities found</p>
-          <p className="mt-1 text-sm text-muted">Try adjusting your filters or check back later.</p>
+          <p className="mt-3 font-medium text-ink">{insights?.hasCategories ? "No matching open requests right now" : "Choose what you supply to unlock matching"}</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted">{insights?.hasCategories ? "New buyer requests are posted regularly. Clear the filters or keep your profile verified so you can be contacted first." : "Add your supply categories and we will surface the buyer requests most relevant to your business."}</p>
+          {insights?.hasCategories
+            ? <button type="button" onClick={() => { setSearch(""); setCategory(""); setRequestType(""); setLocation(""); setDeadline(""); setPage(1); }} className="btn mt-5 min-h-11">Clear filters</button>
+            : <Link href="/provider/profile" className="btn btn-primary mt-5 min-h-11">Select supply categories</Link>}
         </div>
       ) : (
         <div className="space-y-3">

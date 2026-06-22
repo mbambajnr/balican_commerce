@@ -488,7 +488,12 @@ router.put("/provider/profile", authenticate, async (req: AuthRequest, res: Resp
     if (!company?.is_provider) return res.status(403).json({ error: "Not a provider company" });
 
     const { displayName, description, providerType, industriesServed, serviceAreas,
-            operatingRegions, yearsExperience, certifications, licenses, portfolioImages } = req.body;
+            operatingRegions, yearsExperience, certifications, licenses, portfolioImages,
+            businessCategories } = req.body;
+    if (businessCategories !== undefined &&
+        (!Array.isArray(businessCategories) || businessCategories.some((category) => typeof category !== "string"))) {
+      return res.status(400).json({ error: "Business categories must be a list" });
+    }
 
     await query(
       `INSERT INTO provider_profiles (company_id, display_name, provider_type, description,
@@ -522,6 +527,13 @@ router.put("/provider/profile", authenticate, async (req: AuthRequest, res: Resp
       if (upds.length > 0) {
         await query(`UPDATE companies SET ${upds.join(", ")} WHERE id = $1`, updParams);
       }
+    }
+
+    if (businessCategories !== undefined) {
+      await query(
+        "UPDATE companies SET business_categories = $1, updated_at = NOW() WHERE id = $2",
+        [businessCategories, companyId]
+      );
     }
 
     const profile = (await query("SELECT * FROM provider_profiles WHERE company_id = $1", [companyId])).rows[0];

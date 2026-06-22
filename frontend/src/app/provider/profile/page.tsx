@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
-import { User, Building, MapPin, Globe, Envelope, Phone } from "@phosphor-icons/react";
+import { Check, Tag } from "@phosphor-icons/react";
 
 export default function ProviderProfilePage() {
   const [company, setCompany] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [businessCategories, setBusinessCategories] = useState<string[]>([]);
   const [form, setForm] = useState({
     description: "",
     logo_url: "",
@@ -22,11 +24,13 @@ export default function ProviderProfilePage() {
   });
 
   useEffect(() => {
+    api.getMarketplaceCategories().then((res) => setCategories(res.categories || [])).catch(() => {});
     (async () => {
       try {
         const res = await api.getProviderProfile();
         setCompany(res.company);
         setProfile(res.profile || {});
+        setBusinessCategories(res.company?.business_categories || []);
         setForm({
           description: res.profile?.description || "",
           logo_url: res.profile?.logo_url || "",
@@ -49,6 +53,7 @@ export default function ProviderProfilePage() {
         ...form,
         service_areas: form.service_areas ? form.service_areas.split(",").map((s: string) => s.trim()) : [],
         regions: form.regions ? form.regions.split(",").map((s: string) => s.trim()) : [],
+        businessCategories,
       };
       await api.updateProviderProfile(data);
       toast.success("Profile updated");
@@ -93,6 +98,26 @@ export default function ProviderProfilePage() {
             </span>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-white p-5 sm:p-6 space-y-6">
+        <div>
+          <div className="flex items-center gap-2"><Tag size={19} className="text-accent" /><h2 className="text-lg font-semibold text-ink">Supply Categories</h2></div>
+          <p className="mt-1 text-sm text-muted">Choose the categories you supply. We use these to match you with buyer requests.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map((category: any) => {
+            const value = category.slug || category.id;
+            const selected = businessCategories.includes(value);
+            return (
+              <button key={category.id} type="button" onClick={() => setBusinessCategories((current) => selected ? current.filter((item) => item !== value) : [...current, value])} className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${selected ? "border-accent bg-accent/5 font-medium text-accent" : "border-border text-soft hover:border-accent/40"}`}>
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? "border-accent bg-accent text-white" : "border-zinc-300"}`}>{selected && <Check size={13} weight="bold" />}</span>
+                {category.name}
+              </button>
+            );
+          })}
+        </div>
+        {businessCategories.length === 0 && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Select at least one category to see matching opportunity activity.</p>}
       </div>
 
       <div className="rounded-xl border border-border bg-white p-5 sm:p-6 space-y-6">

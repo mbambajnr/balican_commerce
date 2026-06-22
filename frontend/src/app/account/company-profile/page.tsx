@@ -32,7 +32,7 @@ export default function CompanyProfilePage() {
     const params = new URLSearchParams(window.location.search);
     setWelcome(params.get("welcome") === "1");
     const destination = params.get("returnTo");
-    if (destination === "/provider" || destination === "/account") setReturnTo(destination);
+    if (["/provider", "/account", "/provider/verification", "/scout/new"].includes(destination || "")) setReturnTo(destination!);
   }, []);
 
   useEffect(() => {

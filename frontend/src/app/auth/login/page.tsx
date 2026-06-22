@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 import { ArrowRight, Envelope, LockKey } from "@phosphor-icons/react";
 
@@ -29,10 +30,16 @@ export default function LoginPage() {
         router.push("/super-admin");
       } else if (user?.role === "admin") {
         router.push("/admin");
-      } else if ((user as any)?.is_provider && ["pending", "not_started", "required", "changes_requested"].includes((user as any)?.verification_status)) {
-        router.push("/provider/verification");
       } else {
-        router.push((user as any)?.is_provider ? "/provider" : "/products");
+        const dashboard = await api.getCompanyDashboard().catch(() => null);
+        const needsOnboarding = dashboard?.onboarding?.needsOnboarding === true;
+        if (needsOnboarding) {
+          router.push((user as any)?.is_provider ? "/provider/verification" : "/scout/new");
+        } else if ((user as any)?.is_provider && ["pending", "not_started", "required", "changes_requested"].includes((user as any)?.verification_status)) {
+          router.push("/provider/verification");
+        } else {
+          router.push((user as any)?.is_provider ? "/provider" : "/account");
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Login failed");

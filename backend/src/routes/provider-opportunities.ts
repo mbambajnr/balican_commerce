@@ -4,6 +4,7 @@ import { query } from "../config/db";
 import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { trackCompanyActivation, trackFunnelEvent } from "../services/funnel-events";
+import { getProviderOpportunityInsights } from "../services/provider-opportunity-insights";
 
 const router = Router();
 
@@ -82,7 +83,7 @@ router.get("/provider/opportunities", authenticate, requireCompanyActive, async 
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    const [listResult, countResult] = await Promise.all([
+    const [listResult, countResult, insights] = await Promise.all([
       query(
         `SELECT sr.*,
                 cat.name as category_name,
@@ -101,12 +102,14 @@ router.get("/provider/opportunities", authenticate, requireCompanyActive, async 
         [...params, providerCompanyId, limitNum, offset]
       ),
       query(`SELECT COUNT(*) FROM scout_requests sr LEFT JOIN categories cat ON cat.id = sr.category_id ${where}`, params),
+      getProviderOpportunityInsights(providerCompanyId),
     ]);
 
     const total = parseInt(countResult.rows[0].count);
     res.json({
       opportunities: listResult.rows,
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+      insights,
     });
   } catch (err) {
     console.error("Provider opportunities error:", err);

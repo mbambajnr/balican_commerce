@@ -53,7 +53,7 @@ export default function RegisterPage() {
       const login = await signIn("credentials", { email: form.email, password: form.password, redirect: false });
       if (login?.error) throw new Error("Account created, but automatic sign-in failed. Please sign in to continue.");
       fireConversion("CompleteRegistration", { value: 0, currency: "GHS" });
-      router.push(`/account/company-profile?welcome=1&returnTo=${form.companyType === "buyer" ? "%2Faccount" : "%2Fprovider"}`);
+      router.push(`/account/company-profile?welcome=1&returnTo=${form.companyType === "buyer" ? "%2Fscout%2Fnew" : "%2Fprovider%2Fverification"}`);
       router.refresh();
     } catch (error: any) {
       toast.error(error.message || "Registration failed");

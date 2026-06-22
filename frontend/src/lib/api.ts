@@ -575,7 +575,7 @@ export const api = {
   // Provider Opportunities (procurement requests)
   getProviderOpportunities: (params?: { category?: string; requestType?: string; location?: string; deadline?: string; search?: string; status?: string; page?: string; limit?: string }) => {
     const qs = new URLSearchParams(params as any).toString();
-    return request<{ opportunities: any[]; pagination: any }>(`/provider/opportunities${qs ? `?${qs}` : ""}`);
+    return request<{ opportunities: any[]; pagination: any; insights: any }>(`/provider/opportunities${qs ? `?${qs}` : ""}`);
   },
   getProviderOpportunity: (id: string) => request<{ opportunity: any }>(`/provider/opportunities/${id}`),
   submitProviderProposal: (id: string, data: { amount?: number; deliveryDate?: string; creditTerms?: string; availabilityStatus?: string; proposalText: string }) =>
@@ -584,7 +584,7 @@ export const api = {
   getScoutRequestProposals: (requestId: string) => request<{ request: any; proposals: any[] }>(`/scout/requests/${requestId}/proposals`),
 
   // Provider Dashboard
-  getProviderDashboard: () => request<{ stats: any; recentProducts: any[]; recentServices: any[]; businessProfile: { complete: boolean; missingFields: { key: string; label: string }[] } | null }>("/provider/dashboard"),
+  getProviderDashboard: () => request<{ stats: any; recentProducts: any[]; recentServices: any[]; businessProfile: { complete: boolean; missingFields: { key: string; label: string }[] } | null; opportunityInsights: any }>("/provider/dashboard"),
 
   getProviderOperationsSummary: () =>
     request<{

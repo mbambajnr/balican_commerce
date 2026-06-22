@@ -29,7 +29,7 @@ export default function OrdersPage() {
         <div className="mt-12 flex flex-col items-center gap-3 text-center">
           <Cube size={48} className="text-muted" weight="light" />
           <p className="text-sm text-soft">No orders yet</p>
-          <Link href="/products" className="btn btn-primary">Browse Products</Link>
+          <Link href="/scout/new" className="btn btn-primary">Post Your First Sourcing Request</Link>
         </div>
       ) : (
         <div className="card mt-8 overflow-hidden">
