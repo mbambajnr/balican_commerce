@@ -7,7 +7,7 @@ import Link from "next/link";
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   business_registration: "Business Registration",
   certificate_of_incorporation: "Certificate of Inc.",
-  tax_identification: "Tax ID",
+  tax_identification: "TIN (GRA)",
   company_profile: "Company Profile",
   director_or_owner_id: "Director/Owner ID",
   proof_of_address: "Proof of Address",

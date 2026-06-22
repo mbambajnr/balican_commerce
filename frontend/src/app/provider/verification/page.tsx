@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 const DOCUMENT_TYPE_OPTIONS = [
   { value: "business_registration", label: "Business Registration" },
   { value: "certificate_of_incorporation", label: "Certificate of Incorporation" },
-  { value: "tax_identification", label: "Tax Identification" },
+  { value: "tax_identification", label: "TIN (GRA)" },
   { value: "company_profile", label: "Company Profile" },
   { value: "director_or_owner_id", label: "Director/Owner ID" },
   { value: "proof_of_address", label: "Proof of Address" },

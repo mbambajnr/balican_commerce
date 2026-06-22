@@ -173,7 +173,7 @@ export default function AdminCreditCustomersPage() {
                       <p className="font-medium text-ink">{creditData.customer.company_name || "\u2014"}</p>
                     </div>
                     <div>
-                      <p className="text-muted">Tax ID</p>
+                      <p className="text-muted">TIN (GRA)</p>
                       <p className="font-medium text-ink">{creditData.customer.tax_id || "\u2014"}</p>
                     </div>
                     <div>
@@ -272,7 +272,7 @@ export default function AdminCreditCustomersPage() {
                     className="input" />
                 </div>
                 <div>
-                  <label className="input-label">Tax ID</label>
+                  <label className="input-label">TIN (GRA)</label>
                   <input type="text" value={edit.taxId}
                     onChange={(e) => setEdit({ ...edit, taxId: e.target.value })}
                     className="input" />

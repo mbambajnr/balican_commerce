@@ -212,7 +212,7 @@ export async function assessCreditVetting(companyId: string): Promise<VettingRes
   ) {
     warnings.push("Incomplete finance contact information");
   }
-  if (!company.tax_id) warnings.push("No tax ID / TIN provided");
+  if (!company.tax_id) warnings.push("No TIN (GRA) provided");
   if (!company.business_registration_number) warnings.push("No business registration number provided");
 
   // Suggested credit limit

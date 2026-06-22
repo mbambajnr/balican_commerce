@@ -276,7 +276,7 @@ export default function CompanyDetailPage() {
             )}
             <div className="flex justify-between"><dt className="text-muted">Business Type</dt><dd>{company.business_type || "\u2014"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Industry</dt><dd>{company.industry || "\u2014"}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted">Tax / TIN</dt><dd>{company.tax_id || "\u2014"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">TIN (GRA)</dt><dd>{company.tax_id || "\u2014"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Reg Number</dt><dd>{company.business_registration_number || "\u2014"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Customer Group</dt>
               <dd>
@@ -584,7 +584,7 @@ export default function CompanyDetailPage() {
                     <div className="flex justify-between"><dt className="text-muted">Accepted quotes</dt><dd>{vetting.details.acceptedQuotations}</dd></div>
                     <div className="flex justify-between"><dt className="text-muted">Requested limit</dt><dd>{vetting.details.requestedCreditLimit ? `GH₵${Number(vetting.details.requestedCreditLimit).toLocaleString()}` : "\u2014"}</dd></div>
                     <div className="flex justify-between"><dt className="text-muted">Sales rep</dt><dd>{vetting.details.hasAssignedSalesRep ? "Yes" : "No"}</dd></div>
-                    <div className="flex justify-between"><dt className="text-muted">Tax ID</dt><dd>{vetting.details.hasTaxId ? "Yes" : "No"}</dd></div>
+                    <div className="flex justify-between"><dt className="text-muted">TIN (GRA)</dt><dd>{vetting.details.hasTaxId ? "Yes" : "No"}</dd></div>
                     <div className="flex justify-between"><dt className="text-muted">Reg number</dt><dd>{vetting.details.hasRegNumber ? "Yes" : "No"}</dd></div>
                     <div className="flex justify-between"><dt className="text-muted">Finance contact</dt><dd>{vetting.details.hasFinanceContact ? "Complete" : "Incomplete"}</dd></div>
                   </dl>

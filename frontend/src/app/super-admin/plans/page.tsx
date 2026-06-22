@@ -80,7 +80,7 @@ export default function SuperAdminPlans() {
         <p className="text-sm text-gray-500 mb-4">Configure the provider verification payment and renewal grace period.</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input className="border rounded px-3 py-2 text-sm" type="number" value={feeForm.amount} onChange={(e) => setFeeForm({...feeForm, amount: e.target.value})} placeholder="Amount" />
-          <input className="border rounded px-3 py-2 text-sm" value="GHS" disabled />
+          <input className="border rounded px-3 py-2 text-sm" value="GH₵" disabled />
           <input className="border rounded px-3 py-2 text-sm" type="number" value={feeForm.renewalPeriodDays} onChange={(e) => setFeeForm({...feeForm, renewalPeriodDays: e.target.value})} placeholder="Renewal days" />
           <input className="border rounded px-3 py-2 text-sm" type="number" value={feeForm.gracePeriodDays} onChange={(e) => setFeeForm({...feeForm, gracePeriodDays: e.target.value})} placeholder="Grace days" />
         </div>

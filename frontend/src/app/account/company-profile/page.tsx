@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
+import { GHANA_REGIONS } from "@/lib/ghana";
 import { ArrowRight, CheckCircle, IdentificationCard, MapPin, Buildings, CreditCard } from "@phosphor-icons/react";
 
 const BUSINESS_TYPES = ["Private Limited Company (Ltd)", "Public Limited Company (PLC)", "Sole Proprietorship", "Partnership", "Government Agency", "Non-Governmental Organization (NGO)", "Other"];
@@ -92,7 +93,7 @@ export default function CompanyProfilePage() {
         <Section title="Business address" icon={MapPin}>
           <div className="sm:col-span-2"><Input label="Street address" value={profile.address} onChange={(value) => update("address", value)} /></div>
           <Input label="City" value={profile.city} onChange={(value) => update("city", value)} />
-          <Input label="Region" value={profile.state} onChange={(value) => update("state", value)} />
+          <Select label="Region" value={profile.state} options={[...GHANA_REGIONS]} onChange={(value) => update("state", value)} />
         </Section>
         <Section title="Commercial preferences" icon={CreditCard}>
           <div className="sm:col-span-2"><Select label="Requested payment terms" required value={profile.requestedPaymentTerms} options={PAYMENT_TERMS} onChange={(value) => update("requestedPaymentTerms", value)} /></div>

@@ -191,7 +191,7 @@ export default function VettingQuestionRenderer({
                 onChange={(e) => {
                   const val = e.target.value;
                   const num = parseInt(val) || 0;
-                  setValue(q.question_key, val, `GHS ${num.toLocaleString()}`);
+                  setValue(q.question_key, val, `GH₵${num.toLocaleString()}`);
                 }}
                 className={`input w-full pl-14 ${errors[q.question_key] ? "border-red-400" : ""}`}
                 placeholder="0"
@@ -212,7 +212,7 @@ export default function VettingQuestionRenderer({
                   onChange={(e) => {
                     const idx = parseInt(e.target.value);
                     const opt = opts[idx];
-                    setValue(q.question_key, opt.value, opt.label);
+                    setValue(q.question_key, opt.value, opt.label.replace(/\bGHS\b/g, "GH₵"));
                   }}
                   className="w-full accent-accent"
                 />
@@ -220,7 +220,7 @@ export default function VettingQuestionRenderer({
                   {opts.map((opt, i) => (
                     <span key={opt.value} className={`text-center ${getValue(q.question_key) === opt.value ? "text-accent font-semibold" : ""}`}
                       style={{ width: `${100 / opts.length}%` }}>
-                      {i === 0 || i === opts.length - 1 || getValue(q.question_key) === opt.value ? opt.label : ""}
+                      {i === 0 || i === opts.length - 1 || getValue(q.question_key) === opt.value ? opt.label.replace(/\bGHS\b/g, "GH₵") : ""}
                     </span>
                   ))}
                 </div>

@@ -92,7 +92,7 @@ export default function PrivacyPage() {
           <h2 className="font-display text-lg font-semibold text-ink">3. Information We Collect</h2>
           <div className="mt-2 space-y-3">
             <p><strong>Information you provide:</strong> Name, email address, phone number, company name, business
-            details, billing address, tax/VAT numbers, company registration documents, and any details you submit
+            details, billing address, TIN (GRA), company registration documents, and any details you submit
             through RFQ forms, registration, credit applications, or order placement.</p>
             <p><strong>Account &amp; transactional data:</strong> Order history, quotation history, credit
             applications, credit limit, payment history, and communication preferences.</p>

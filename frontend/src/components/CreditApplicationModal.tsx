@@ -142,7 +142,7 @@ export default function CreditApplicationModal({ open, onClose, onSubmit }: Prop
             </label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-ink pointer-events-none">
-                GHC
+                GH₵
               </span>
               <input
                 ref={inputRef}

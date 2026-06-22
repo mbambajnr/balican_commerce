@@ -17,7 +17,7 @@ const VERIFICATION_STATUS_COLORS: Record<string, string> = {
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   business_registration: "Business Registration",
   certificate_of_incorporation: "Certificate of Incorporation",
-  tax_identification: "Tax Identification",
+  tax_identification: "TIN (GRA)",
   company_profile: "Company Profile",
   director_or_owner_id: "Director/Owner ID",
   proof_of_address: "Proof of Address",

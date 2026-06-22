@@ -91,7 +91,7 @@ export default function AccountBillingPage() {
                   <p className="font-medium text-ink">{billing.company_name || "\u2014"}</p>
                 </div>
                 <div>
-                  <p className="text-muted">Tax ID</p>
+                  <p className="text-muted">TIN (GRA)</p>
                   <p className="font-medium text-ink">{billing.tax_id || "\u2014"}</p>
                 </div>
                 <div>

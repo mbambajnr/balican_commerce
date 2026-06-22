@@ -303,7 +303,7 @@ export default function CompanyDashboard() {
             )}
             {company.taxId && (
               <div>
-                <p className="text-xs font-medium text-muted uppercase tracking-wider">Tax ID</p>
+                <p className="text-xs font-medium text-muted uppercase tracking-wider">TIN (GRA)</p>
                 <p className="mt-1 text-sm text-ink">{company.taxId}</p>
               </div>
             )}
