@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 const DOCUMENT_TYPE_OPTIONS = [
@@ -122,6 +123,7 @@ export default function ProviderVerificationPage() {
   const feePaid = fee?.latestPayment?.status === "paid";
   const feeWaived = status?.feeWaiver?.active;
   const canSubmitForReview = Boolean(fee?.canSubmitForReview);
+  const businessProfileComplete = status?.businessProfile?.complete !== false;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -143,6 +145,13 @@ export default function ProviderVerificationPage() {
       )}
       {successMsg && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{successMsg}</div>
+      )}
+      {!businessProfileComplete && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Complete your company profile before submitting.</p>
+          <p className="mt-1 text-xs">Missing: {status.businessProfile.missingFields.map((field: any) => field.label).join(", ")}.</p>
+          <Link href="/account/company-profile?returnTo=%2Fprovider" className="mt-3 inline-block font-semibold underline">Complete company profile</Link>
+        </div>
       )}
 
       {/* Payment Section */}
@@ -253,13 +262,15 @@ export default function ProviderVerificationPage() {
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <button
           onClick={handleSubmit}
-          disabled={submitting || !canSubmit || docs.length === 0 || !canSubmitForReview}
+          disabled={submitting || !canSubmit || docs.length === 0 || !canSubmitForReview || !businessProfileComplete}
           className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
         >
           {submitting ? "Submitting..." : "Submit for Review"}
         </button>
         <p className="text-xs text-gray-400 text-center mt-2">
-          {docs.length === 0
+          {!businessProfileComplete
+            ? "Complete your company profile before submitting"
+            : docs.length === 0
             ? "Upload at least one document before submitting"
             : !canSubmitForReview
               ? "Pay the Balican Verified fee or request a waiver before submitting"

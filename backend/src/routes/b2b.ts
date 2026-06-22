@@ -9,6 +9,7 @@ import { applyCustomPricing } from "./products";
 import { notifyAndLog } from "../services/notifications";
 import { revokeUserSessions } from "../services/auth-session";
 import { trackFunnelEvent } from "../services/funnel-events";
+import { businessProfileCompletion, businessProfileError, getBusinessProfile } from "../services/business-profile";
 import {
   parseSpreadsheet,
   SpreadsheetParseError,
@@ -1101,7 +1102,7 @@ router.get("/company/dashboard", authenticate, async (req: AuthRequest, res: Res
       `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.company_id, u.company_role,
               u.account_status, u.company_name, u.store_credit, u.credit_limit, u.outstanding_balance,
               c.name, c.status as company_status, c.email as company_email, c.phone as company_phone,
-              c.address, c.city, c.state, c.country, c.tax_id, c.business_registration_number,
+              c.address, c.city, c.state, c.country, c.tax_id, c.business_registration_number, c.requested_payment_terms,
               c.contact_person_name, c.contact_person_email, c.contact_person_phone,
               c.customer_group_id, c.assigned_sales_rep_id, c.rejection_reason,
               c.credit_status, c.requested_credit_limit, c.approved_credit_limit, c.credit_used,
@@ -1220,7 +1221,10 @@ router.get("/company/dashboard", authenticate, async (req: AuthRequest, res: Res
       shippingMethods,
       procurementLists,
       stats,
-      onboarding: { needsOnboarding: stats.rfqsCount === 0 && stats.ordersCount === 0 },
+      onboarding: {
+        needsOnboarding: stats.rfqsCount === 0 && stats.ordersCount === 0,
+        businessProfile: companyId ? businessProfileCompletion(row) : null,
+      },
     });
   } catch (err) {
     console.error("Company dashboard error:", err);
@@ -1404,6 +1408,12 @@ router.post("/company/credit/apply", authenticate, requireCompanyActive, validat
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (!ALLOWED_CREDIT_ROLES.includes(userResult.rows[0].company_role)) {
       return res.status(403).json({ error: "Only company admins, finance, and buyers can apply for credit." });
+    }
+
+    const businessProfile = await getBusinessProfile(companyId);
+    if (!businessProfile) return res.status(404).json({ error: "Company not found" });
+    if (!businessProfileCompletion(businessProfile).complete) {
+      return res.status(400).json(businessProfileError("applying for credit", businessProfile));
     }
 
     // Check company is active

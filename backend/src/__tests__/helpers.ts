@@ -14,11 +14,11 @@ export function makeUnique(prefix: string): string {
 export async function createTestCompany(name?: string) {
   const companyName = name || makeUnique("company");
   const result = await query(
-    `INSERT INTO companies (name, email, contact_person_name, status)
-     VALUES ($1, $2, $3, 'active')
+    `INSERT INTO companies (name, email, contact_person_name, status, tax_id, business_registration_number, requested_payment_terms)
+     VALUES ($1, $2, $3, 'active', $4, $5, $6)
      ON CONFLICT DO NOTHING
      RETURNING *`,
-    [companyName, `${companyName.toLowerCase()}@test-sslplan.com`, "Test Contact"]
+    [companyName, `${companyName.toLowerCase()}@test-sslplan.com`, "Test Contact", "TIN-TEST-001", "REG-TEST-001", "Net 30 Days"]
   );
   if (result.rows.length > 0) return result.rows[0];
   const existing = await query("SELECT * FROM companies WHERE name = $1", [companyName]);

@@ -9,6 +9,7 @@ import { authLimiter } from "../middleware/security";
 import { notifyAndLog } from "../services/notifications";
 import { sendEmail } from "../services/email";
 import { createAuthSession, revokeAuthSession } from "../services/auth-session";
+import { businessProfileCompletion, getBusinessProfile } from "../services/business-profile";
 
 const router = Router();
 router.use(["/login", "/admin-login", "/register", "/admin-register"], authLimiter);
@@ -44,6 +45,35 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+const companyProfileSchema = z.object({
+  businessType: z.string().max(200).optional(),
+  industry: z.string().max(200).optional(),
+  email: z.union([z.string().email(), z.literal("")]).optional(),
+  address: z.string().max(500).optional(),
+  city: z.string().max(120).optional(),
+  state: z.string().max(120).optional(),
+  taxId: z.string().max(120).optional(),
+  businessRegistrationNumber: z.string().max(120).optional(),
+  requestedPaymentTerms: z.string().max(120).optional(),
+});
+
+function serializeCompanyProfile(company: Record<string, any>) {
+  return {
+    id: company.id,
+    name: company.name,
+    businessType: company.business_type || "",
+    industry: company.industry || "",
+    email: company.email || "",
+    phone: company.phone || "",
+    address: company.address || "",
+    city: company.city || "",
+    state: company.state || "",
+    taxId: company.tax_id || "",
+    businessRegistrationNumber: company.business_registration_number || "",
+    requestedPaymentTerms: company.requested_payment_terms || "",
+  };
+}
 
 const adminRegisterSchema = z.object({
   email: z.string().email(),
@@ -491,6 +521,56 @@ router.put("/profile", authenticate, validate(z.object({
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+router.get("/company-profile", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userResult = await query("SELECT company_id FROM users WHERE id = $1", [req.userId]);
+    const companyId = userResult.rows[0]?.company_id;
+    if (!companyId) return res.status(404).json({ error: "No company associated with your account" });
+
+    const company = await getBusinessProfile(companyId);
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    res.json({ profile: serializeCompanyProfile(company), completion: businessProfileCompletion(company) });
+  } catch (err) {
+    console.error("Get company profile error:", err);
+    res.status(500).json({ error: "Failed to get company profile" });
+  }
+});
+
+router.put("/company-profile", authenticate, validate(companyProfileSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userResult = await query("SELECT company_id, company_role FROM users WHERE id = $1", [req.userId]);
+    const user = userResult.rows[0];
+    if (!user?.company_id) return res.status(404).json({ error: "No company associated with your account" });
+    if (user.company_role !== "company_admin") {
+      return res.status(403).json({ error: "Only a company admin can update the business profile" });
+    }
+
+    const fieldMap: Record<string, string> = {
+      businessType: "business_type", industry: "industry", email: "email", address: "address",
+      city: "city", state: "state", taxId: "tax_id",
+      businessRegistrationNumber: "business_registration_number",
+      requestedPaymentTerms: "requested_payment_terms",
+    };
+    const fields: string[] = [];
+    const values: any[] = [];
+    for (const [key, column] of Object.entries(fieldMap)) {
+      if (req.body[key] !== undefined) {
+        values.push(String(req.body[key]).trim() || null);
+        fields.push(`${column} = $${values.length}`);
+      }
+    }
+    if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
+
+    values.push(user.company_id);
+    await query(`UPDATE companies SET ${fields.join(", ")}, updated_at = NOW() WHERE id = $${values.length}`, values);
+    const company = await getBusinessProfile(user.company_id);
+    res.json({ profile: serializeCompanyProfile(company), completion: businessProfileCompletion(company) });
+  } catch (err) {
+    console.error("Update company profile error:", err);
+    res.status(500).json({ error: "Failed to update company profile" });
   }
 });
 

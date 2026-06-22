@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Package, Wrench as WrenchIcon, FileText, CalendarCheck, ArrowRight } from "@phosphor-icons/react";
+import { Package, Wrench as WrenchIcon, FileText, CalendarCheck, ArrowRight, IdentificationCard } from "@phosphor-icons/react";
 
 const statIcons: Record<string, any> = {
   products: Package,
@@ -31,6 +31,7 @@ export default function ProviderDashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
   const [recentServices, setRecentServices] = useState<any[]>([]);
+  const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function ProviderDashboardPage() {
         setStats(res.stats);
         setRecentProducts(res.recentProducts || []);
         setRecentServices(res.recentServices || []);
+        setBusinessProfile(res.businessProfile);
       } catch {
         toast.error("Failed to load dashboard");
       } finally {
@@ -64,6 +66,14 @@ export default function ProviderDashboardPage() {
         <h1 className="text-2xl font-bold text-ink">Provider Dashboard</h1>
         <p className="mt-1 text-sm text-muted">Manage your products, services, and inventory</p>
       </div>
+
+      {businessProfile && !businessProfile.complete && (
+        <div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700"><IdentificationCard size={21} weight="duotone" /></div>
+          <div className="flex-1"><p className="text-sm font-semibold text-amber-950">Complete your company profile</p><p className="mt-0.5 text-xs text-amber-800">Required for Balican Verified: {businessProfile.missingFields.map((field: any) => field.label).join(", ")}.</p></div>
+          <Link href="/account/company-profile?returnTo=%2Fprovider" className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-amber-900">Complete profile <ArrowRight size={15} /></Link>
+        </div>
+      )}
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {stats && Object.entries(stats).map(([key, value]) => {

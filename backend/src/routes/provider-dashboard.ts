@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { query } from "../config/db";
 import { authenticate, requireCompanyActive, AuthRequest } from "../middleware/auth";
 import { computeSupplierScore } from "../services/supplier-scoring";
+import { businessProfileCompletion, getBusinessProfile } from "../services/business-profile";
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.get("/provider/dashboard", authenticate, async (req: AuthRequest, res: Re
     const ctx = await resolveProviderCompany(req, res, false);
     if (!ctx) return;
 
-    const [productCount, serviceCount, recentProducts, recentServices] = await Promise.all([
+    const [productCount, serviceCount, recentProducts, recentServices, businessProfile] = await Promise.all([
       query("SELECT COUNT(*) as cnt FROM products WHERE provider_company_id = $1 AND is_active = true", [ctx.companyId]),
       query("SELECT COUNT(*) as cnt FROM services WHERE provider_company_id = $1 AND is_active = true", [ctx.companyId]),
       query(
@@ -83,6 +84,7 @@ router.get("/provider/dashboard", authenticate, async (req: AuthRequest, res: Re
          FROM services WHERE provider_company_id = $1 ORDER BY created_at DESC LIMIT 5`,
         [ctx.companyId]
       ),
+      getBusinessProfile(ctx.companyId),
     ]);
 
     res.json({
@@ -92,6 +94,7 @@ router.get("/provider/dashboard", authenticate, async (req: AuthRequest, res: Re
       },
       recentProducts: recentProducts.rows,
       recentServices: recentServices.rows,
+      businessProfile: businessProfile ? businessProfileCompletion(businessProfile) : null,
     });
   } catch (err) {
     console.error("Provider dashboard error:", err);

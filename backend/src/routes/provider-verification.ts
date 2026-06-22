@@ -5,6 +5,7 @@ import { config } from "../config";
 import { storePrivateDocument, validateDocumentFile } from "../services/storage";
 import { createActivityLog } from "../services/activity-log";
 import { notifyVerificationSubmitted } from "../services/verification-notifications";
+import { businessProfileCompletion, businessProfileError, getBusinessProfile } from "../services/business-profile";
 import multer from "multer";
 
 const router = Router();
@@ -83,6 +84,7 @@ router.get("/verification/status", authenticate, async (req: AuthRequest, res: R
       [company.company_id]
     );
     const feeState = await getVerificationFeeState(company.company_id);
+    const businessProfile = await getBusinessProfile(company.company_id);
 
     res.json({
       companyId: company.company_id,
@@ -102,6 +104,7 @@ router.get("/verification/status", authenticate, async (req: AuthRequest, res: R
         canSubmitForReview: hasActiveWaiver(company) || hasSuccessfulPayment(feeState.latestPayment),
       },
       documents: docsResult.rows,
+      businessProfile: businessProfile ? businessProfileCompletion(businessProfile) : null,
     });
   } catch (err) {
     console.error("Error fetching verification status:", err);
@@ -278,6 +281,12 @@ router.post("/verification/submit", authenticate, async (req: AuthRequest, res: 
     const company = await getProviderCompany(req.userId!);
     if (!company) {
       return res.status(403).json({ error: "Only provider companies can submit for verification" });
+    }
+
+    const businessProfile = await getBusinessProfile(company.company_id);
+    if (!businessProfile) return res.status(404).json({ error: "Company not found" });
+    if (!businessProfileCompletion(businessProfile).complete) {
+      return res.status(400).json(businessProfileError("submitting for Balican Verified", businessProfile));
     }
 
     if (["approved", "submitted", "under_review"].includes(company.verification_status)) {

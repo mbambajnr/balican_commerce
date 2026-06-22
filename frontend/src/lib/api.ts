@@ -36,6 +36,8 @@ export const api = {
     request<{ user: any; company: any }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   getMe: () => request<{ user: any }>("/auth/me"),
   updateProfile: (data: any) => request<{ user: any }>("/auth/profile", { method: "PUT", body: JSON.stringify(data) }),
+  getCompanyProfile: () => request<{ profile: any; completion: { complete: boolean; missingFields: { key: string; label: string }[] } }>("/auth/company-profile"),
+  updateCompanyProfile: (data: any) => request<{ profile: any; completion: { complete: boolean; missingFields: { key: string; label: string }[] } }>("/auth/company-profile", { method: "PUT", body: JSON.stringify(data) }),
 
   // Products
   getProducts: (params?: { search?: string; category?: string; page?: string }) => {
@@ -387,7 +389,7 @@ export const api = {
     creditLimit: { limit: number; outstanding: number };
     paymentMethods: string[]; shippingMethods: any[];
     procurementLists: any[]; stats: { ordersCount: number; rfqsCount: number; procurementListsCount: number; teamMembersCount: number };
-    onboarding: { needsOnboarding: boolean };
+    onboarding: { needsOnboarding: boolean; businessProfile: { complete: boolean; missingFields: { key: string; label: string }[] } | null };
   }>("/company/dashboard"),
 
   // Team Members (self-service for company users)
@@ -582,7 +584,7 @@ export const api = {
   getScoutRequestProposals: (requestId: string) => request<{ request: any; proposals: any[] }>(`/scout/requests/${requestId}/proposals`),
 
   // Provider Dashboard
-  getProviderDashboard: () => request<{ stats: any; recentProducts: any[]; recentServices: any[] }>("/provider/dashboard"),
+  getProviderDashboard: () => request<{ stats: any; recentProducts: any[]; recentServices: any[]; businessProfile: { complete: boolean; missingFields: { key: string; label: string }[] } | null }>("/provider/dashboard"),
 
   getProviderOperationsSummary: () =>
     request<{

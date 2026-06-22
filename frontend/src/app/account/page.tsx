@@ -70,6 +70,7 @@ export default function CompanyDashboard() {
   const needsOnboarding = dashboard?.onboarding?.needsOnboarding ?? (stats.rfqsCount === 0 && stats.ordersCount === 0);
   const companyStatus = company?.status || (user as any)?.account_status;
   const companyName = company?.name || (user as any)?.company_name;
+  const businessProfile = dashboard?.onboarding?.businessProfile;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -85,6 +86,16 @@ export default function CompanyDashboard() {
         </div>
       )}
 
+      {companyStatus === "active" && businessProfile && !businessProfile.complete && (
+        <div className="mb-6 flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-950">Complete your company profile</p>
+            <p className="mt-0.5 text-xs text-amber-800">Required before applying for credit: {businessProfile.missingFields.map((field: any) => field.label).join(", ")}.</p>
+          </div>
+          <Link href="/account/company-profile" className="btn btn-sm shrink-0 border-amber-300 bg-white text-amber-900">Complete profile <ArrowRight size={14} /></Link>
+        </div>
+      )}
+
       {/* Vetting CTA Banner */}
       {companyStatus === "active" && !vettingStatus && (
         <div className="mb-6 flex items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft px-5 py-4">
@@ -92,7 +103,7 @@ export default function CompanyDashboard() {
             <Clipboard size={20} weight="bold" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-ink">Complete your business profile</p>
+            <p className="text-sm font-semibold text-ink">Complete business vetting</p>
             <p className="text-xs text-muted">Help us serve you better — it only takes a few minutes</p>
           </div>
           <Link href="/account/vetting" className="btn btn-primary btn-sm shrink-0 gap-1.5">
@@ -352,7 +363,9 @@ export default function CompanyDashboard() {
               </div>
             </div>
             {dashboard?.companyCredit?.creditStatus === "not_requested" && company.status === "active" && (
-              <button onClick={() => setShowCreditModal(true)} className="btn btn-primary btn-sm">Apply for Credit Sales</button>
+              businessProfile?.complete
+                ? <button onClick={() => setShowCreditModal(true)} className="btn btn-primary btn-sm">Apply for Credit Sales</button>
+                : <Link href="/account/company-profile" className="btn btn-primary btn-sm">Complete profile to apply</Link>
             )}
           </div>
 
