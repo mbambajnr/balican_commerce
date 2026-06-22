@@ -126,11 +126,11 @@ export default function ProviderVerificationPage() {
   const businessProfileComplete = status?.businessProfile?.complete !== false;
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold mb-6">Provider Verification</h1>
 
-      <div className={`bg-white rounded-lg shadow-sm border p-6 mb-6 ${status?.verificationStatus === "approved" ? "border-green-200" : ""}`}>
-        <div className="flex items-center gap-3 mb-2">
+      <div className={`mb-6 rounded-lg border bg-white p-5 shadow-sm sm:p-6 ${status?.verificationStatus === "approved" ? "border-green-200" : ""}`}>
+        <div className="mb-2 flex flex-wrap items-center gap-3">
           <h2 className="text-lg font-semibold">Status</h2>
           <span className={`text-sm font-medium ${meta.color}`}>{meta.label}</span>
         </div>
@@ -155,8 +155,8 @@ export default function ProviderVerificationPage() {
       )}
 
       {/* Payment Section */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="mb-6 rounded-lg border bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold mb-1">Balican Verified Fee</h2>
             <p className="text-sm text-gray-500">
@@ -183,7 +183,7 @@ export default function ProviderVerificationPage() {
           <button
             onClick={handlePayment}
             disabled={paying || feePaid || feeWaived || status?.verificationStatus === "approved"}
-            className="shrink-0 px-4 py-2 bg-accent text-white rounded-lg text-sm hover:bg-accent-bold disabled:opacity-50"
+            className="min-h-11 w-full shrink-0 rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-bold disabled:opacity-50 sm:w-auto"
           >
             {paying ? "Starting..." : feePaid || feeWaived ? "Payment Complete" : "Pay Fee"}
           </button>
@@ -191,7 +191,7 @@ export default function ProviderVerificationPage() {
       </div>
 
       {/* Upload Section */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+      <div className="mb-6 rounded-lg border bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-lg font-semibold mb-4">Upload Document</h2>
         <div className="space-y-4">
           <div>
@@ -215,7 +215,7 @@ export default function ProviderVerificationPage() {
           <button
             onClick={handleUpload}
             disabled={uploading || !file}
-            className="px-4 py-2 bg-accent text-white rounded-lg text-sm hover:bg-accent-bold disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-bold disabled:opacity-50 sm:w-auto"
           >
             {uploading ? "Uploading..." : "Upload Document"}
           </button>
@@ -224,12 +224,12 @@ export default function ProviderVerificationPage() {
 
       {/* Uploaded Documents */}
       {docs.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <div className="mb-6 rounded-lg border bg-white p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Uploaded Documents ({docs.length})</h2>
           <div className="space-y-3">
             {docs.map((doc: any) => (
-              <div key={doc.id} className="flex items-center justify-between border-b pb-3 last:border-0">
-                <div>
+              <div key={doc.id} className="flex flex-col gap-2 border-b pb-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{DOCUMENT_TYPE_OPTIONS.find(o => o.value === doc.document_type)?.label || doc.document_type}</p>
                   <p className="text-xs text-gray-400">{doc.file_name} ({(doc.file_size / 1024).toFixed(1)} KB)</p>
                   {doc.status === "needs_reupload" && doc.rejection_reason && (
@@ -249,7 +249,7 @@ export default function ProviderVerificationPage() {
                     {doc.status.replace(/_/g, " ")}
                   </span>
                   {doc.status === "pending" && (
-                    <button onClick={() => handleDelete(doc.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                    <button onClick={() => handleDelete(doc.id)} className="min-h-11 rounded-lg px-3 text-xs text-red-500 hover:bg-red-50">Delete</button>
                   )}
                 </div>
               </div>
@@ -259,11 +259,11 @@ export default function ProviderVerificationPage() {
       )}
 
       {/* Submit Button */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="rounded-lg border bg-white p-5 shadow-sm sm:p-6">
         <button
           onClick={handleSubmit}
           disabled={submitting || !canSubmit || docs.length === 0 || !canSubmitForReview || !businessProfileComplete}
-          className="w-full px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+          className="min-h-11 w-full rounded-lg bg-green-600 px-4 py-3 font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
         >
           {submitting ? "Submitting..." : "Submit for Review"}
         </button>

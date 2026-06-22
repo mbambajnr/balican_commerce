@@ -66,10 +66,10 @@ export default function RegisterPage() {
     <div className="mx-auto flex min-h-[80dvh] max-w-3xl flex-col justify-center px-4 py-10">
       <div className="card overflow-hidden">
         <div className="border-b border-border bg-navy px-6 py-6 text-white sm:px-8">
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/65">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/65 sm:gap-3 sm:text-xs sm:tracking-[0.18em]">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-navy">1</span>
             Account setup
-            <span className="h-px flex-1 bg-white/20" />
+            <span className="hidden h-px flex-1 bg-white/20 min-[420px]:block" />
             <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/30">2</span>
             Business profile
           </div>

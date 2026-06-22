@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import toast from "react-hot-toast";
+import WhatsAppShareLink from "@/components/WhatsAppShareLink";
 import {
   ArrowLeft, MapPin, Calendar, Cube, Wrench,
   Clock, CurrencyCircleDollar, PaperPlaneTilt, CaretLeft,
@@ -106,15 +107,16 @@ export default function OpportunityDetailPage() {
 
   return (
     <div>
-      <Link href="/provider/opportunities" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-        <ArrowLeft size={16} /> Back to opportunities
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/provider/opportunities" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft size={16} /> Back to opportunities</Link>
+        <WhatsAppShareLink title={`Procurement opportunity: ${opportunity.title}`} />
+      </div>
 
       {/* Opportunity detail card */}
-      <div className="mt-4 rounded-xl border border-border bg-white p-6">
+      <div className="mt-4 rounded-xl border border-border bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-xl font-semibold text-ink">{opportunity.title}</h1>
               {opportunity.requestType === "service" ? (
                 <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Service</span>
@@ -135,7 +137,7 @@ export default function OpportunityDetailPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mt-4 grid gap-4 min-[380px]:grid-cols-2 sm:grid-cols-4">
           {opportunity.categoryName && (
             <div>
               <p className="text-[11px] text-muted">Category</p>
@@ -189,15 +191,15 @@ export default function OpportunityDetailPage() {
           <p className="text-sm text-muted">This opportunity is no longer accepting proposals.</p>
         </div>
       ) : myProposal && !showForm ? (
-        <div className="mt-6 rounded-xl border border-border bg-white p-6">
-          <div className="flex items-center justify-between">
+        <div className="mt-6 rounded-xl border border-border bg-white p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-ink">Your Proposal</h2>
               <p className="text-xs text-muted">Submitted — you can update your proposal at any time.</p>
             </div>
             <button onClick={() => setShowForm(true)} className="btn btn-sm">Edit proposal</button>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mt-4 grid gap-4 min-[380px]:grid-cols-2 sm:grid-cols-4">
             {myProposal.amount && (
               <div>
                 <p className="text-[11px] text-muted">Amount</p>
@@ -229,7 +231,7 @@ export default function OpportunityDetailPage() {
           )}
         </div>
       ) : (
-        <div className="mt-6 rounded-xl border border-border bg-white p-6">
+        <div className="mt-6 rounded-xl border border-border bg-white p-5 sm:p-6">
           <div className="mb-4">
             <h2 className="font-semibold text-ink">
               {myProposal ? "Update Your Proposal" : "Send a Proposal"}
@@ -284,13 +286,13 @@ export default function OpportunityDetailPage() {
               />
             </div>
 
-            <div className="flex items-center gap-3">
-              <button type="submit" disabled={submitting} className="btn btn-primary gap-2">
+            <div className="grid gap-3 sm:flex sm:items-center">
+              <button type="submit" disabled={submitting} className="btn btn-primary w-full gap-2 sm:w-auto">
                 <PaperPlaneTilt size={16} weight="bold" />
                 {submitting ? "Submitting…" : myProposal ? "Update proposal" : "Submit proposal"}
               </button>
               {myProposal && (
-                <button type="button" onClick={() => setShowForm(false)} className="btn">
+                <button type="button" onClick={() => setShowForm(false)} className="btn w-full sm:w-auto">
                   Cancel
                 </button>
               )}

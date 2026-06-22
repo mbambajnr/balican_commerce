@@ -144,7 +144,7 @@ export default function CompanyDashboard() {
 
       {/* Onboarding Empty State */}
       {needsOnboarding && companyStatus === "active" && (
-        <div className="mt-8 rounded-2xl border border-accent/20 bg-accent-soft/50 p-8">
+        <div className="mt-8 rounded-2xl border border-accent/20 bg-accent-soft/50 p-5 sm:p-8">
           <h2 className="font-display text-xl font-semibold text-navy">Get Started with Bali-Can Limited</h2>
           <p className="mt-1 text-sm text-soft">
             Your company is approved and ready. Here&apos;s what you can do:
@@ -337,7 +337,7 @@ export default function CompanyDashboard() {
       {/* Company Credit Status */}
       {company && (
         <div className="card mt-6 p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-warn">
                 <Coins size={20} weight="duotone" />
@@ -437,7 +437,7 @@ export default function CompanyDashboard() {
       {vettingStatus && (
         <div className="mt-6">
           <div className="card p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent-bold shrink-0">
                   <Clipboard size={20} weight="duotone" />
@@ -515,7 +515,7 @@ export default function CompanyDashboard() {
               </div>
               <div className="mt-3 space-y-2">
                 {dashboard.shippingMethods.map((sm: any) => (
-                  <div key={sm.code} className="flex items-center justify-between text-sm">
+                  <div key={sm.code} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="text-ink">{sm.name}</span>
                     <span className="text-muted">GH₵{Number(sm.custom_rate || sm.base_rate).toLocaleString()}</span>
                   </div>
@@ -550,7 +550,7 @@ export default function CompanyDashboard() {
           </div>
           <div className="mt-3 space-y-2">
             {dashboard.procurementLists.map((pl: any) => (
-              <div key={pl.id} className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm">
+              <div key={pl.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-4 py-3 text-sm">
                 <span className="text-ink font-medium">{pl.name}</span>
                 <span className="text-muted">{new Date(pl.created_at).toLocaleDateString()}</span>
               </div>

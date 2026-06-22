@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import {
   House, Package, Wrench, Wrench as WrenchIcon,
   User, Clipboard, SignOut, ShoppingBagOpen, FileText,
-  ChartBar, Bell, TrendUp, MagnifyingGlass, ShieldCheck, CurrencyCircleDollar,
+  ChartBar, TrendUp, MagnifyingGlass, ShieldCheck, CurrencyCircleDollar, List, X,
 } from "@phosphor-icons/react";
 import NotificationBell from "@/components/NotificationBell";
 
@@ -34,6 +34,7 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
   const [companyName, setCompanyName] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -61,8 +62,13 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="flex min-h-screen bg-surface">
-      <aside className={`flex flex-col border-r border-border bg-white transition-all ${collapsed ? "w-16" : "w-60"}`}>
+    <div className="min-h-screen bg-surface lg:flex">
+      <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-border bg-white px-4 lg:hidden">
+        <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{companyName || "Provider"}</p><p className="text-xs text-muted">Provider workspace</p></div>
+        <button type="button" onClick={() => setMobileOpen(true)} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border text-ink" aria-label="Open provider navigation"><List size={22} /></button>
+      </header>
+      {mobileOpen && <button type="button" className="fixed inset-0 z-40 bg-navy/55 lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close provider navigation" />}
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[min(19rem,85vw)] flex-col border-r border-border bg-white transition-transform lg:static lg:z-auto lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "lg:w-16" : "lg:w-60"}`}>
         <div className="flex items-center gap-2 border-b border-border px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-xs font-bold text-white">P</div>
           {!collapsed && (
@@ -71,7 +77,8 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
               <p className="truncate text-xs text-muted">Dashboard</p>
             </div>
           )}
-          <button onClick={() => setCollapsed(!collapsed)} className="ml-auto rounded p-1 text-muted hover:bg-surface">
+          <button onClick={() => setMobileOpen(false)} className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-surface lg:hidden" aria-label="Close provider navigation"><X size={20} /></button>
+          <button onClick={() => setCollapsed(!collapsed)} className="ml-auto hidden h-11 w-11 items-center justify-center rounded text-muted hover:bg-surface lg:flex">
             <svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor">
               <path d={collapsed ? "M181.66 133.66l-80 80a8 8 0 01-11.32-11.32L164.69 128 90.34 53.66a8 8 0 0111.32-11.32l80 80a8 8 0 010 11.32z" : "M90.34 133.66l80-80a8 8 0 0111.32 11.32L107.31 128l74.35 74.34a8 8 0 01-11.32 11.32l-80-80a8 8 0 010-11.32z"} />
             </svg>
@@ -82,6 +89,7 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive(item.href)
                   ? "bg-accent/10 text-accent"
@@ -104,7 +112,7 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
           </button>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-x-hidden">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
     </div>

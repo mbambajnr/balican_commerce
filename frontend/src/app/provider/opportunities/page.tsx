@@ -79,8 +79,8 @@ export default function ProviderOpportunitiesPage() {
       <div className="mb-6"><ProviderReadinessCard insights={insights} businessProfile={businessProfile} /></div>
 
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        <div className="relative col-span-2 sm:col-span-1 lg:col-span-2">
+      <div className="mb-6 grid gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="relative sm:col-span-2 lg:col-span-2">
           <MagnifyingGlass size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             className="input w-full pl-8 text-sm"

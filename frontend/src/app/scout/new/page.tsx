@@ -133,7 +133,7 @@ export default function NewScoutRequestPage() {
         {/* Request type toggle */}
         <div>
           <label className="input-label">Request Type</label>
-          <div className="mt-2 flex gap-3">
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => set("requestType", "product")}
@@ -206,7 +206,7 @@ export default function NewScoutRequestPage() {
         </div>
 
         {/* Quantity + Unit */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="input-label">
               {form.requestType === "service" ? "Quantity / Scope" : "Quantity"} <span className="text-red-500">*</span>
@@ -234,7 +234,7 @@ export default function NewScoutRequestPage() {
         </div>
 
         {/* Delivery */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="input-label">{form.requestType === "service" ? "Site / Location" : "Delivery Location"}</label>
             <input
@@ -260,7 +260,7 @@ export default function NewScoutRequestPage() {
         {/* Budget */}
         <div>
           <label className="input-label">Budget Range (GH₵) — Optional</label>
-          <div className="mt-1 flex items-center gap-3">
+          <div className="mt-1 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
             <input
               type="number"
               min="0"
@@ -270,7 +270,7 @@ export default function NewScoutRequestPage() {
               value={form.budgetMin}
               onChange={(e) => set("budgetMin", e.target.value)}
             />
-            <span className="text-muted">–</span>
+            <span className="hidden text-muted sm:inline">–</span>
             <input
               type="number"
               min="0"
@@ -294,12 +294,12 @@ export default function NewScoutRequestPage() {
           />
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
-          <button type="submit" disabled={submitting} className="btn btn-primary gap-2">
+        <div className="grid gap-3 pt-2 sm:flex sm:items-center">
+          <button type="submit" disabled={submitting} className="btn btn-primary w-full gap-2 sm:w-auto">
             <MagnifyingGlass size={16} weight="bold" />
             {submitting ? "Creating…" : "Create Scout Request"}
           </button>
-          <Link href="/scout" className="btn">Cancel</Link>
+          <Link href="/scout" className="btn w-full sm:w-auto">Cancel</Link>
         </div>
       </form>
     </div>

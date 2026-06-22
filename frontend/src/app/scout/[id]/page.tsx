@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import toast from "react-hot-toast";
+import WhatsAppShareLink from "@/components/WhatsAppShareLink";
 import {
   ArrowLeft, CheckCircle, XCircle, Hourglass, Trophy,
   CurrencyCircleDollar, CalendarBlank, ClockCountdown,
@@ -116,12 +117,13 @@ export default function ScoutRequestDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <Link href="/scout" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-        <ArrowLeft size={16} /> Back to Scout
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/scout" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft size={16} /> Back to Scout</Link>
+        <WhatsAppShareLink title={`Sourcing request: ${scoutRequest.title}`} />
+      </div>
 
       {/* Request header */}
-      <div className="mt-6 rounded-xl border border-border bg-white p-6">
+      <div className="mt-4 rounded-xl border border-border bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -166,7 +168,7 @@ export default function ScoutRequestDetailPage() {
             <button
               onClick={handleCancel}
               disabled={cancelling}
-              className="shrink-0 text-sm text-red-500 hover:underline"
+              className="min-h-11 shrink-0 rounded-lg px-3 text-sm text-red-500 hover:bg-red-50"
             >
               {cancelling ? "Cancelling…" : "Cancel request"}
             </button>
@@ -176,7 +178,7 @@ export default function ScoutRequestDetailPage() {
 
       {/* Recommended Providers */}
       <div className="mt-8">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-ink">
             Recommended Providers
             {recommendations.length > 0 && (
@@ -245,7 +247,7 @@ export default function ScoutRequestDetailPage() {
 
       {/* Quote comparison */}
       <div className="mt-8">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-ink">
             Quotes Received
             <span className="ml-2 text-sm font-normal text-muted">({quotes.length})</span>

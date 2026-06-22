@@ -47,12 +47,12 @@ export default function HeroCarousel() {
 
       <div className="relative mx-auto grid min-h-[88dvh] max-w-7xl items-center gap-14 px-4 pb-20 pt-24 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8">
         <div className="max-w-3xl">
-          <span className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
+          <span className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-blue-200 sm:px-4 sm:text-xs sm:tracking-[0.14em]">
             <MapPin size={14} weight="fill" />
             Built for business sourcing across Ghana
           </span>
 
-          <h1 className="animate-fade-up animate-delay-100 mt-7 font-display text-5xl font-semibold tracking-[-0.045em] text-white sm:text-6xl lg:text-7xl">
+          <h1 className="animate-fade-up animate-delay-100 mt-7 font-display text-4xl font-semibold tracking-[-0.045em] text-white min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
             Post one request.
             <span className="mt-1 block bg-gradient-to-r from-blue-300 via-white to-amber-200 bg-clip-text text-transparent">
               Let verified suppliers compete.

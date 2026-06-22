@@ -64,7 +64,7 @@ export default function CompanyProfilePage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{welcome ? "Step 2 of 2" : "Company settings"}</p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink">Complete your business profile</h1>
@@ -79,7 +79,7 @@ export default function CompanyProfilePage() {
         </div>
       )}
 
-      <form onSubmit={save} className="space-y-6 rounded-2xl border border-border bg-white p-6 shadow-sm sm:p-8">
+      <form onSubmit={save} className="space-y-6 rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-8">
         <Section title="Business details" icon={Buildings}>
           <Select label="Business type" value={profile.businessType} options={BUSINESS_TYPES} onChange={(value) => update("businessType", value)} />
           <Select label="Industry" value={profile.industry} options={INDUSTRIES} onChange={(value) => update("industry", value)} />

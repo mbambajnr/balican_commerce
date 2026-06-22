@@ -171,7 +171,7 @@ function RfqForm() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="card p-8 space-y-6">
+      <form onSubmit={handleSubmit} className="card space-y-6 p-5 sm:p-8">
         {/* Product selection area */}
         <div className="space-y-4">
           <label className="input-label">{isBulk || items.length > 1 ? "Products" : "Product"}</label>
@@ -183,7 +183,7 @@ function RfqForm() {
             />
           ) : (
             items.map((item, index) => (
-              <div key={item.productId || index} className="flex items-start gap-3">
+              <div key={item.productId || index} className={`grid items-start gap-2 sm:gap-3 ${isBulk ? "grid-cols-[minmax(0,1fr)_5rem_2.75rem]" : "grid-cols-[minmax(0,1fr)_5rem]"}`}>
                 <div className="flex-1 min-w-0">
                   <ProductSearchSelect
                     products={allProducts}
@@ -200,7 +200,7 @@ function RfqForm() {
                   required
                 />
                 {isBulk && (
-                  <button type="button" onClick={() => removeItem(item.productId)} className="text-muted hover:text-red-500 transition-colors p-1 shrink-0 mt-1">
+                  <button type="button" onClick={() => removeItem(item.productId)} aria-label="Remove product" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-red-50 hover:text-red-500">
                     <Trash size={16} />
                   </button>
                 )}
