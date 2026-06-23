@@ -1,6 +1,6 @@
-# Bali-Can Limited — B2B Platform
+# Bali-Can Limited — B2B Procurement Marketplace
 
-Bali-Can Limited is a B2B solar energy equipment and installation platform. The platform enables businesses to browse products (solar panels, inverters, batteries, and accessories), request quotations, place orders, schedule service installations, and manage payments — including credit terms and bank transfers.
+Bali-Can Limited is a Ghana-first B2B procurement marketplace. Its launch flow is: a buyer posts a sourcing request, matched suppliers submit proposals, the parties agree commercial terms, and the resulting order is managed in-platform. Revenue at launch comes from Balican Verified supplier fees and commission accrued on completed marketplace deals. The catalog, service booking, quotations, bank transfers, and trade-credit tracking remain supported secondary workflows.
 
 This monorepo contains a Next.js 15 frontend and an Express/TypeScript backend, sharing a PostgreSQL database with full-text and trigram product search. Authentication uses JWT (backend) and Auth.js (frontend). Payments are handled through Paystack.
 
@@ -28,8 +28,8 @@ This monorepo contains a Next.js 15 frontend and an Express/TypeScript backend, 
 # 1. Install dependencies (both frontend + backend via npm workspaces)
 npm run install:all
 
-# 2. Start the database and search engine
-docker compose up -d
+# 2. Start PostgreSQL for local development
+docker compose up -d postgres
 
 # 3. Copy and configure environment files
 cp backend/.env.example backend/.env
@@ -64,16 +64,26 @@ npm run dev
 | `JWT_SECRET`           | **Yes**  | —                                         | JWT signing key. Generate: `openssl rand -hex 32`               |
 | `JWT_EXPIRES_IN`       | No       | `1h`                                      | Revocable backend access-session expiry                          |
 | `PAYSTACK_SECRET_KEY`  | No\*     | —                                         | Paystack secret key. Required for live payments.                |
-| `PAYSTACK_PUBLIC_KEY`  | No\*     | —                                         | Paystack public key. Required for frontend payment button.       |
+| `PAYSTACK_WEBHOOK_SECRET` | No   | Falls back to `PAYSTACK_SECRET_KEY`        | HMAC secret for Paystack webhooks.                              |
+| `PAYMENT_CURRENCY`     | **Yes** in production | `GHS`                         | Only GHS is accepted in production payment paths.               |
 | `RESEND_API_KEY`       | No       | —                                         | Resend API key for transactional emails.                        |
 | `RESEND_FROM_EMAIL`    | No       | `no-reply@yourdomain.com`                 | From-address for transactional emails.                          |
 | `ALERT_WEBHOOK_URL`    | **Yes** in production | —                              | HTTPS destination for critical readiness, payment, and email alerts. |
+| `SENTRY_DSN`           | **Yes** in production | —                              | Centralized exception reporting.                                |
+| `SENTRY_TRACES_SAMPLE_RATE` | No | `0.05`                                     | Fraction of transactions included in tracing.                   |
+| `APP_RELEASE`          | No       | `development`                              | Immutable release or git SHA attached to telemetry.             |
+| `METRICS_TOKEN`        | **Yes** in production | —                              | Minimum 32-character token for `/internal/metrics`.             |
+| `BACKUP_STATUS_FILE`   | No       | `backups/.last-success`                    | Successful-backup marker used by readiness metrics.             |
 | `FRONTEND_URL`         | No       | `http://localhost:3000`                   | Frontend URL used for CORS and redirects; also used as base for PDF product links. |
 | `ADMIN_SECRET_KEY`     | No\*     | —                                         | Secret required to register admin accounts. Set a strong value. |
-| `UPLOAD_STORAGE_DRIVER` | No      | `local`                                   | Storage driver for product images (`local`). For production, consider S3-compatible object storage instead. |
+| `UPLOAD_STORAGE_DRIVER` | No      | `local`                                   | `local` for development; production requires `s3`.              |
 | `UPLOAD_DIR`           | No       | `uploads`                                 | Directory for local file storage (only used with `local` driver)    |
 | `PUBLIC_UPLOAD_BASE_URL` | No     | `http://localhost:4000/uploads`            | Public URL prefix for uploaded files (only used with `local` driver) |
 | `UPLOAD_MAX_IMAGE_SIZE` | No      | `5242880`                                 | Max image size in bytes (default 5MB)                              |
+| `S3_BUCKET`, `S3_REGION` | **Yes** in production | —                           | S3-compatible production storage location.                      |
+| `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE` | No | —                                  | Optional S3-compatible provider settings.                       |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Conditional | —                       | Set together, or use an IAM/workload role.                       |
+| `S3_SIGNED_URL_EXPIRES_SECONDS` | No | `60`                                     | Private-document signed URL lifetime.                            |
 
 \*Required only for the corresponding feature in production.
 
@@ -86,6 +96,7 @@ npm run dev
 | `AUTH_SECRET`                  | **Yes**  | —                        | Auth.js session encryption. Generate: `openssl rand -base64 32` |
 | `AUTH_URL`                     | **Yes**  | —                        | Canonical site URL (e.g. `http://localhost:3000`) |
 | `NEXT_PUBLIC_API_URL`          | **Yes**  | —                        | Backend API base URL (e.g. `http://localhost:4000/api`) |
+| `BACKEND_API_URL`              | **Yes**  | —                        | Server-only API URL used by Auth.js and `/backend-api`. |
 | `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | No   | —                        | Paystack public key for frontend payment button   |
 
 ## Project Structure
@@ -353,25 +364,14 @@ Tests use Jest with Supertest. They run against a real database — ensure Postg
 ```bash
 cd backend
 npm test                       # Run all tests (--forceExit --detectOpenHandles)
-npm run test:payments          # Payment integration tests
-npm run test:bookings          # Booking integration tests
+npm test -- payments.test.ts   # Run one integration suite
 npm test -- --watch            # Watch mode
 npm run test:verbose           # Verbose output
 ```
 
-**Current test status:** 137/137 passing across 7 suites. Backend TypeScript clean, frontend build clean.
+**Launch regression status (2026-06-22):** 844/844 passing across 56 suites. Coverage includes payment mismatch and replay handling, tenant isolation, paid verification, commission accrual, funnel analytics, sourcing reminders, onboarding, and PostgreSQL search.
 
-Test files: `backend/src/__tests__/`
-
-| Suite                    | Tests | Coverage                              |
-| ------------------------ | ----- | ------------------------------------- |
-| `payments.test.ts`       | 23    | Orders, Paystack webhook, overdue detection, credit transactions |
-| `b2b-security.test.ts`   | 38    | Quote-first pricing, guest RFQ, company isolation |
-| `b2b-pdf-email.test.ts`  | 16    | Quotation/invoice PDF email flow, product links, resend |
-| `bookings.test.ts`       | 26    | Service booking CRUD, scheduling, eligibility |
-| `order-types.test.ts`    | 15    | Service order types, status transitions |
-| `customers.test.ts`      | 13    | Customer CRUD, credit management |
-| `concurrency.test.ts`    | 6     | Transaction isolation, race condition guards |
+Test files live in `backend/src/__tests__/` and use the configured PostgreSQL database.
 
 ## Build Commands
 
@@ -390,9 +390,21 @@ cd backend && npm run typecheck
 
 1. Go to [Paystack Dashboard → Settings → Webhooks](https://dashboard.paystack.com/#/settings/developer)
 2. Add URL: `https://your-domain.com/api/orders/paystack-webhook`
-3. The webhook handles `charge.success` events to mark orders as paid
-4. In development, webhook behavior is covered by integration tests
-5. Paystack signature verification is skipped when `PAYSTACK_SECRET_KEY` is empty (dev mode)
+3. Set `PAYSTACK_SECRET_KEY`, optional `PAYSTACK_WEBHOOK_SECRET`, and `PAYMENT_CURRENCY=GHS`
+4. The shared `charge.success` handler settles eligible orders and Balican Verified payments
+5. Amount and currency must match exactly; references are replay-safe and duplicate protected
+6. Production startup and webhook handling fail closed when payment configuration is missing
+
+See `PAYSTACK_GO_LIVE.md` for the live-key switch and GH₵10 verification procedure.
+
+## Launch Workflows
+
+- Buyers create sourcing requests through Scout/RFQ and review supplier proposals.
+- Suppliers complete their profile and Balican Verified payment or receive an audited founder waiver before entering the review queue.
+- Completed marketplace orders accrue one commission ledger entry using the configured category rate or global default.
+- `/admin/operations` reports deal-loop performance and first-party funnel conversion; `/admin/commissions` exports commission data.
+- Registration is split into minimal account creation and a deferrable business profile. TIN (GRA), registration number, and payment terms become mandatory at credit or verification submission.
+- Buyer and supplier onboarding routes lead directly to the next useful action, with mobile layouts tested at 380px and WhatsApp sharing on sourcing details.
 
 ## Roadmap & Limitations
 
@@ -472,7 +484,7 @@ Quotation and invoice PDFs are generated server-side using **pdfkit** and attach
 
 The `docker-compose.yml` starts the production application stack:
 
-- **PostgreSQL 16** (`db`): Port 5432, persistent volume `pgdata`, credentials `sslplan:sslplan_dev`
+- **PostgreSQL 16** (`postgres`): internal port 5432 with persistent `postgres_data`
 - **Backend, frontend, and Caddy**: API, web application, and TLS reverse proxy
 
 Start with: `docker compose up -d`
@@ -493,7 +505,9 @@ Stop with: `docker compose down`
 | `npm test`                           | backend      | Run all Jest tests                     |
 | `npm run test:verbose`               | backend      | Run tests with verbose output          |
 | `npm run typecheck`                  | backend      | TypeScript type checking               |
+| `npm run reminders:opportunities`    | backend      | Send idempotent 24-hour supplier reminders |
 | `npm run dev`                        | frontend     | `next dev`                             |
 | `npm run build`                      | frontend     | `next build`                           |
 | `npm run start`                      | frontend     | `next start`                           |
 | `npm run lint`                       | frontend     | `next lint`                            |
+| `node scripts/smoke-test.mjs`        | root         | Read-only launch smoke test (`BASE_URL`, optional `API_BASE_URL`) |

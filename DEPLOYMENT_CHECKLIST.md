@@ -7,8 +7,7 @@
 
 ## 0. Pre-Flight
 
-- [ ] **Git repository initialized**: Run `git init && git add -A && git commit -m "release baseline"`
-      before deployment. Tag the release: `git tag v1.0.0`.
+- [ ] Release commit is pushed to GitHub and reviewed; create an immutable release tag.
 - [ ] All backend tests pass: `cd backend && npm test`
 - [ ] Backend TypeScript compiles: `cd backend && npm run build`
 - [ ] Frontend builds: `cd frontend && npm run build`
@@ -36,13 +35,18 @@
 | `RESEND_FROM_EMAIL` | **Yes** | Verified transactional sender |
 | `ALERT_WEBHOOK_URL` | **Yes** | HTTPS receiver for critical operational alerts |
 | `SENTRY_DSN` | **Yes** | Centralized exception aggregation |
+| `SENTRY_TRACES_SAMPLE_RATE` | No | Default `0.05` |
+| `APP_RELEASE` | **Yes** | Immutable release tag or git SHA |
 | `METRICS_TOKEN` | **Yes** | At least 32 characters; protects internal metrics |
+| `BACKUP_STATUS_FILE` | **Yes** | Successful-backup marker mounted read-only into the app |
 | `FRONTEND_URL` | **Yes** | Production frontend URL (e.g. `https://sslplan.com`) |
 | `ADMIN_SECRET_KEY` | Initial setup | `openssl rand -hex 16`; admin registration is disabled when unset |
 | `UPLOAD_STORAGE_DRIVER` | **Yes** | Must be `s3` in production |
 | `S3_BUCKET` / `S3_REGION` | **Yes** | S3-compatible object storage |
+| `S3_ENDPOINT` / `S3_FORCE_PATH_STYLE` | Conditional | Required when the provider is not AWS-compatible by default |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Conditional | Set both, or neither when using an IAM/workload role |
 | `PUBLIC_UPLOAD_BASE_URL` | **Yes** | HTTPS public/CDN prefix for `public/*` |
+| `S3_SIGNED_URL_EXPIRES_SECONDS` | No | Default `60`; private verification-document URL lifetime |
 | `BACKUP_ENCRYPTION_KEY` | **Yes** | Stored outside the server and repository |
 | `BACKUP_RCLONE_REMOTE` | **Yes** | Versioned off-site backup destination |
 
@@ -53,6 +57,9 @@
 | `AUTH_SECRET` | **Yes** | `openssl rand -base64 32` — session encryption |
 | `AUTH_URL` | **Yes** | Production canonical URL (e.g. `https://sslplan.com`) |
 | `NEXT_PUBLIC_API_URL` | **Yes** | Backend API URL (e.g. `https://api.sslplan.com/api`) |
+| `BACKEND_API_URL` | **Yes** | Server-only API URL used by Auth.js and the authenticated proxy |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | **Yes** | Live Ghana Paystack public key (`pk_live_...`) |
+| `NEXT_PUBLIC_GTM_ID` / `NEXT_PUBLIC_GA_MEASUREMENT_ID` / `NEXT_PUBLIC_META_PIXEL_ID` | Optional | Consent-gated analytics IDs |
 
 - [ ] All variables set
 - [ ] Secrets are NOT committed to version control
@@ -70,7 +77,7 @@ npm run migrate
 
 ```
 
-- [ ] All migrations ran without errors
+- [ ] All 39 migrations ran without errors
 - [ ] `schema_migrations` contains the full migration history
 - [ ] A second `npm run migrate` reports all migrations as skipped
 - [ ] Customer groups are seeded (Standard, Silver, Gold, Platinum)
@@ -148,6 +155,8 @@ npm start
 - [ ] Webhook URL configured in Paystack dashboard
 - [ ] Webhook secret copied to `.env`
 - [ ] Test webhook: Paystack dashboard has a "Send Test Webhook" button
+- [ ] Webhook endpoint handles both order settlement and Balican Verified fee settlement
+- [ ] Complete the GH₵10 live-card procedure in `PAYSTACK_GO_LIVE.md`
 
 ---
 
@@ -162,12 +171,33 @@ npm start
 - [ ] Admin account created successfully
 - [ ] Admin can access `/admin` dashboard
 
+### Launch revenue configuration
+
+- [ ] In `/super-admin/plans`, set the Balican Verified fee, renewal period, and grace period
+- [ ] In `/super-admin/plans`, set the global commission rate and any category overrides
+- [ ] In `/super-admin/companies/[id]`, grant audited 365-day fee waivers to approved first-cohort suppliers
+- [ ] Confirm an unpaid, non-waived verification submission cannot enter the review queue
+- [ ] Confirm a completed marketplace order creates exactly one commission ledger entry
+
+### Scheduled jobs
+
+- [ ] Run `npm --workspace backend run reminders:opportunities` hourly
+- [ ] Call authenticated `POST /api/super-admin/verification/expire-lapsed` daily
+- [ ] Confirm the scheduler records failures and alerts operators
+
 ---
 
 ## 7. Post-Deploy Smoke Test
 
 Run the **LAUNCH_SMOKE_TEST.md** checklist against the production deployment.
 At minimum verify:
+
+```bash
+BASE_URL=https://sslplan.com \
+API_BASE_URL=https://api.sslplan.com \
+SMOKE_STRICT_READY=true \
+node scripts/smoke-test.mjs
+```
 
 - [ ] Health check returns 200
 - [ ] Public product listing loads
@@ -178,7 +208,9 @@ At minimum verify:
 - [ ] Cart and checkout function
 - [ ] Quick order by SKU works
 - [ ] RFQ → Quotation → Order flow works
-- [ ] Paystack webhook processes successfully (use test card: `4084 0840 8408 4084`, any CVV, any future date)
+- [ ] Paid/waived supplier verification → admin review → Balican Verified badge works
+- [ ] Completed deal appears in supplier/admin commission views and CSV export
+- [ ] Paystack webhook processes the documented GH₵10 live transaction successfully
 
 ---
 
@@ -244,6 +276,9 @@ RESTORE_FORCE=true ./scripts/restore-db.sh ./backups/balican_sslplan_<timestamp>
 | Build succeeds (backend + frontend) | — | |
 | Health check returns 200 | — | |
 | Smoke tests pass | — | |
+| Balican Verified fee and renewal configured | — | |
+| Global/category commission rates configured | — | |
+| First-cohort waivers recorded | — | |
 | Webhook configured and tested | — | |
 | Admin account created | — | |
 | Rollback plan documented | — | |

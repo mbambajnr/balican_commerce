@@ -118,11 +118,18 @@ async function main() {
       headers: { accept: "application/json" },
     });
     assertStatus(response, 200);
-    const body = await expectJsonObject(response);
-    if ("backendToken" in body || ("user" in body && body.user && "backendToken" in body.user)) {
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error(`expected JSON response, got ${contentType || "no content-type"}`);
+    }
+    const body = await response.json();
+    if (body !== null && (typeof body !== "object" || Array.isArray(body))) {
+      throw new Error("expected a session object or null");
+    }
+    if (body && ("backendToken" in body || ("user" in body && body.user && "backendToken" in body.user))) {
       throw new Error("session response exposes backendToken");
     }
-    return "session JSON contains no backend credential";
+    return `${body === null ? "unauthenticated session is null" : "session JSON"} and contains no backend credential`;
   });
 
   await check("browser credential proxy blocks login endpoint", async () => {
