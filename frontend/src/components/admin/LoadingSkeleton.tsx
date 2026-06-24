@@ -17,7 +17,8 @@ export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
               <tr key={r} className="border-b border-border/50">
                 {Array.from({ length: cols }).map((_, c) => (
                   <td key={c} className="px-6 py-4">
-                    <div className="h-4 skeleton rounded" style={{ width: `${50 + Math.random() * 40}%` }} />
+                    {/* Deterministic width so server and client render identically (no hydration mismatch). */}
+                    <div className="h-4 skeleton rounded" style={{ width: `${50 + ((r * cols + c) * 17 % 40)}%` }} />
                   </td>
                 ))}
               </tr>

@@ -114,6 +114,18 @@ Existing production essentials remain required: `DATABASE_URL`, `JWT_SECRET`, `P
 - [ ] Run the strict smoke command against production, then manually test buyer request → supplier proposal → agreement → order → fulfilment → commission.
 - [ ] Verify monitoring, encrypted off-site backups, restore drill, TLS/DNS, privacy/legal contact details, and the launch go/no-go table.
 
+## Post-Handover Local-Dev Fixes (2026-06-24)
+
+These changes fix local development only; **production behavior is unchanged** and the launch gates above still hold.
+
+- **CSP allows `'unsafe-eval'` in development** (`frontend/next.config.js`). `next dev` executes webpack modules via `eval()`; the strict production CSP blocked all client JS, so React never hydrated and client-fetched pages (e.g. the marketplace) hung on their loading skeleton forever. The relaxation is gated to `NODE_ENV !== 'production'` — production keeps the original strict `script-src`. HMR websockets (`ws:`/`wss:`) were added to `connect-src` under the same dev gate.
+- **CORS allows any localhost origin in development** (`backend/src/app.ts`). The allowlist was `localhost:3000` only; dev now accepts any `localhost`/`127.0.0.1` port (production allowlist unchanged) so the frontend works on alternate dev ports.
+- **Marketplace error/retry state** (`frontend/src/app/marketplace/marketplace-page-client.tsx`). The category fetch previously swallowed errors and stuck on the skeleton; it now shows a retryable error state.
+- **Deterministic loading-skeleton widths** (`frontend/src/components/admin/LoadingSkeleton.tsx`). Replaced `Math.random()` widths that caused hydration mismatches.
+- **`.claude/launch.json`** corrected to the real repo path and dev port 3001.
+
+Local dev: backend `cd backend && npm run dev` (:4000); frontend `next dev` on :3001 (host `localhost:3000` may be occupied by another app).
+
 ## Launch Decision
 
 The codebase is technically launch-ready against the automated gates above. Production remains **NO-GO** until the founder completes the live credentials, webhook, GH₵10 payment, revenue settings, first-cohort waiver decisions, scheduler, storage, email, monitoring, and backup checks.

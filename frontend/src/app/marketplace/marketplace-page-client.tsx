@@ -44,13 +44,44 @@ const FALLBACK_SERVICE_CATEGORIES = [
 
 export default function MarketplacePageClient() {
   const [data, setData] = useState<{ categories: any[]; featuredProviders: any[] } | null>(null);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState("");
   const [productPage, setProductPage] = useState(1);
   const [servicePage, setServicePage] = useState(1);
 
   useEffect(() => {
-    api.getMarketplaceCategories().then(setData).catch(() => {});
-  }, []);
+    let cancelled = false;
+    setError(false);
+    api
+      .getMarketplaceCategories()
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  if (error && !data) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-20 text-center">
+        <h1 className="font-display text-2xl font-bold text-navy">Marketplace unavailable</h1>
+        <p className="mt-3 text-sm text-soft">
+          We couldn&apos;t load the marketplace right now. Please check your connection and try again.
+        </p>
+        <button
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent/90"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   if (!data) return <div className="mx-auto max-w-7xl px-4 py-10"><PageSkeleton /></div>;
 

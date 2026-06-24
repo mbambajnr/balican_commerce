@@ -45,8 +45,21 @@ const app = express();
 app.use(observability);
 app.use(metricsMiddleware);
 app.use(securityHeaders);
+const allowedOrigins = [config.frontendUrl, "http://localhost:3000"];
+const isProduction = config.nodeEnv === "production";
+
 app.use(cors({
-  origin: [config.frontendUrl, "http://localhost:3000"],
+  origin: (origin, callback) => {
+    // Allow non-browser requests (curl, server-to-server) with no Origin header.
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In development, allow any localhost/127.0.0.1 port so the frontend works
+    // even when it falls back to an alternate dev port (e.g. 3001).
+    if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
